@@ -1,5 +1,6 @@
 # RTSP (Real Time Streaming Protocol) Study
 - Based RFC-2326
+- https://datatracker.ietf.org/doc/html/rfc2326
   
 ## 1. Definition
 - 직접 RTP 를 전송하기 위한 프로토콜이 아니다.
