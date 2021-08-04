@@ -1,2 +1,2 @@
-# JRTSP_SERVER
+# JRTSP
 RTSP Server with live 555
