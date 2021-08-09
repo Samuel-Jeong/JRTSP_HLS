@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Random;
 
 /**
  * @class public class MessageHandler extends TaskUnit
@@ -42,6 +43,8 @@ public class MessageHandler extends TaskUnit {
     private int videoLength;
 
     ImageTranslator imageTranslator;
+
+    private int ssrc;
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +76,9 @@ public class MessageHandler extends TaskUnit {
                         fileName.length() - 1
                 );
             }
+
+            Random random = new Random();
+            ssrc = random.nextInt(Integer.MAX_VALUE);
 
             video = new VideoStream(
                     fileName
@@ -147,22 +153,19 @@ public class MessageHandler extends TaskUnit {
 
             // TODO: Send rtp
             // 3) Builds an RtpPacket object containing the frame
-            RtpPacket rtpPacket = new RtpPacket(
-                    MJPEG_TYPE,
-                    imageIndex,
-                    imageIndex * FRAME_PERIOD,
+            RtpPacket rtpPacket = new RtpPacket();
+            rtpPacket.setValue(
+                    2, 0, 0, 0, 0, MJPEG_TYPE, imageIndex,
+                    (long) imageIndex * FRAME_PERIOD,
+                    ssrc,
                     data,
                     imageLength
             );
 
             // 4) Get to total length of the full rtp packet to send
-            int packetLength = rtpPacket.getLength();
+            byte[] totalData = rtpPacket.getData();
 
-            // 5) Retrieve the packet
-            byte[] packetBits = new byte[packetLength];
-            rtpPacket.getPacket(packetBits);
-
-            ByteBuf buf = Unpooled.copiedBuffer(packetBits);
+            ByteBuf buf = Unpooled.copiedBuffer(totalData);
             logger.debug(">> Frame[#{}] (size={})", imageIndex, imageLength);
 
             // 6) Send the packet
