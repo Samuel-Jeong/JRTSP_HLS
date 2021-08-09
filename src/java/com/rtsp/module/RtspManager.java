@@ -1,6 +1,7 @@
 package com.rtsp.module;
 
 import com.rtsp.module.base.RtspUnit;
+import com.rtsp.module.netty.NettyChannelManager;
 
 /**
  * @class public class RtspManager
@@ -34,8 +35,17 @@ public class RtspManager {
 
     public void closeRtspUnit() {
         if (rtspUnit != null) {
-            rtspUnit.getRtspChannel().closeChannel();
-            rtspUnit.getRtcpChannel().closeChannel();
+            NettyChannelManager.getInstance().deleteChannel(
+                    rtspUnit.getRtspChannel().getListenIp()
+                            + "_" +
+                            rtspUnit.getRtspChannel().getListenPort()
+            );
+
+            NettyChannelManager.getInstance().deleteChannel(
+                    rtspUnit.getRtcpChannel().getListenIp()
+                            + "_" +
+                            rtspUnit.getRtcpChannel().getListenPort()
+            );
         }
     }
 

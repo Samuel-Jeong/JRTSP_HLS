@@ -1,8 +1,8 @@
 package com.rtsp.module;
 
-import com.rtsp.config.ConfigManager;
-import com.rtsp.module.netty.NettyChannelManager;
-import com.rtsp.service.AppInstance;
+import com.rtsp.module.base.MessageHandler;
+import com.rtsp.module.netty.handler.MessageSenderChannelHandler;
+import com.rtsp.service.TaskManager;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -30,35 +30,33 @@ public class MessageSender {
 
     /* 메시지 송신용 채널 */
     private Channel channel;
-    /* Destination IP */
-    private String ip;
-    /* Destination Port */
-    private int port;
+
+    private final String listenIp;
+    private final int listenPort;
+
+    private final String destIp;
+    private final int destPort;
+
+    /* Fila name */
+    private final String fileName;
 
     /////////////////////////////////////////////////////////////////////
 
-    /**
-     * @fn public MessageSender(String id, String ip, int port)
-     * @brief MessageSender 생성자 함수
-     * @param id MessageSender id
-     * @param ip Destination IP
-     * @param port Destination Port
-     */
-    public MessageSender(String id, String ip, int port) {
+    public MessageSender(String id, String listenIp, int listenPort, String destIp, int destPort, String fileName) {
         this.id = id;
-        this.ip = ip;
-        this.port = port;
+
+        this.listenIp = listenIp;
+        this.listenPort = listenPort;
+
+        this.destIp = destIp;
+        this.destPort = destPort;
+
+        this.fileName = fileName;
     }
 
     /////////////////////////////////////////////////////////////////////
 
-    /**
-     * @fn public MessageSender start (Bootstrap b)
-     * @brief MessageSender 시작 함수
-     * MessageSender 호출한 Context 에서 채널 연결 여부를 판단할 수 있도록 MessageSender 객체를 반환
-     * @return 성공 시 MessageSender 객체 반환, 실패 시 null 반환
-     */
-    public MessageSender start () {
+    public MessageSender init() {
         if (channel != null) {
             return null;
         }
@@ -74,55 +72,58 @@ public class MessageSender {
                 .option(ChannelOption.SO_RCVBUF, 16777216)
                 .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_REUSEADDR, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000);
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
+                .handler(new ChannelInitializer<NioDatagramChannel>() {
+                    @Override
+                    public void initChannel (final NioDatagramChannel ch) {
+                        final ChannelPipeline pipeline = ch.pipeline();
+                        pipeline.addLast(
+                                new DefaultEventExecutorGroup(1),
+                                new MessageSenderChannelHandler()
+                        );
+                    }
+                });
 
         try {
-            address = InetAddress.getByName(ip);
-            channelFuture = b.connect(address, port).sync();
+            address = InetAddress.getByName(destIp);
+            channelFuture = b.connect(address, destPort).sync();
             channelFuture.addListener(
-                    (ChannelFutureListener) future -> logger.trace("| Success to connect with remote peer. (ip={}, port={})", ip, port)
+                    (ChannelFutureListener) future -> logger.trace("| Success to connect with remote peer. (ip={}, port={})", destIp, destPort)
             );
             channel = channelFuture.channel();
         } catch (Exception e) {
-            logger.warn("| MessageSender.start.Exception. (ip={}, port={})", ip, port, e);
+            logger.warn("| MessageSender.start.Exception. (ip={}, port={})", destIp, destPort, e);
             return null;
         }
 
         return this;
     }
 
-    /**
-     * @fn public void stop ()
-     * @brief MessageSender 종료 함수
-     */
+    public void start () {
+        TaskManager.getInstance().addTask(
+                MessageSender.class.getSimpleName() + "_" + id,
+                new MessageHandler(
+                        1,
+                        id,
+                        listenIp,
+                        listenPort,
+                        destIp,
+                        destPort,
+                        fileName
+                )
+        );
+    }
+
     public void stop () {
         if (channel != null) {
+            TaskManager.getInstance().removeTask(
+                    MessageSender.class.getSimpleName() + "_" + id
+            );
+
             channel.closeFuture();
             channel.close();
             channel = null;
         }
-    }
-
-    /////////////////////////////////////////////////////////////////////
-
-    public String getId() {
-        return id;
-    }
-
-    public String getIp() {
-        return ip;
-    }
-
-    public void setIp(String ip) {
-        this.ip = ip;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -160,12 +161,15 @@ public class MessageSender {
 
     /////////////////////////////////////////////////////////////////////
 
+
     @Override
     public String toString() {
         return "MessageSender{" +
-                "Channel=" + channel +
-                ", ip='" + ip + '\'' +
-                ", port=" + port +
+                "id='" + id + '\'' +
+                ", channel=" + channel +
+                ", ip='" + destIp + '\'' +
+                ", port=" + destPort +
+                ", fileName='" + fileName + '\'' +
                 '}';
     }
 }

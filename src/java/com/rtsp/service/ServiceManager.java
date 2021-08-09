@@ -42,6 +42,8 @@ public class ServiceManager {
     }
 
     public void stop () {
+        TaskManager.getInstance().stop();
+
         RtspManager.getInstance().closeRtspUnit();
 
         isQuit = true;

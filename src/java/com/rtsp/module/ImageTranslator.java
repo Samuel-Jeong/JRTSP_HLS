@@ -17,7 +17,7 @@ import java.util.Iterator;
  * @class class ImageTranslator
  * @brief ImageTranslator class
  */
-class ImageTranslator {
+public class ImageTranslator {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageTranslator.class);
 
@@ -25,6 +25,8 @@ class ImageTranslator {
     private ByteArrayOutputStream baos;
     private ImageWriter writer;
     private ImageWriteParam param;
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     public ImageTranslator(float cq) {
         compressionQuality = cq;
@@ -43,9 +45,10 @@ class ImageTranslator {
 
         } catch (Exception e) {
             logger.warn("ImageTranslator.Exception", e);
-            System.exit(0);
         }
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     public byte[] compress(byte[] imageBytes) {
         try {
@@ -55,11 +58,13 @@ class ImageTranslator {
             writer.write(null, new IIOImage(image, null, null), param);
         } catch (Exception e) {
             logger.warn("ImageTranslator.Exception", e);
-            System.exit(0);
+            return null;
         }
 
         return baos.toByteArray();
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     public void setCompressionQuality(float cq) {
         compressionQuality = cq;

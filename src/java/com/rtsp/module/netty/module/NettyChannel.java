@@ -39,6 +39,7 @@ public class NettyChannel {
     /*메시지 수신용 채널 */
     private Channel serverChannel;
 
+    private final String listenIp;
     private final int listenPort;
 
     /* MessageSender Map */
@@ -48,19 +49,20 @@ public class NettyChannel {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public NettyChannel(int port) {
+    public NettyChannel(String ip, int port) {
+        this.listenIp = ip;
         this.listenPort = port;
     }
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public void run (String key, int channelType) {
+    public void run (String ip, int port, int channelType) {
         bossGroup = new NioEventLoopGroup();
         b = new ServerBootstrap();
         b.group(bossGroup, workerGroup);
         b.channel(NioServerSocketChannel.class)
-                .option(ChannelOption.SO_BROADCAST, false)
-                .option(ChannelOption.SO_SNDBUF, 33554432)
+                /*.option(ChannelOption.SO_BROADCAST, false)
+                .option(ChannelOption.SO_SNDBUF, 33554432)*/
                 .option(ChannelOption.SO_RCVBUF, 16777216)
                 .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_REUSEADDR, true)
@@ -76,7 +78,8 @@ public class NettyChannel {
                                 pipeline.addLast(
                                         new DefaultEventExecutorGroup(1),
                                         new RtspChannelHandler(
-                                                key
+                                                ip,
+                                                port
                                         )
                                 );
                                 break;
@@ -84,7 +87,8 @@ public class NettyChannel {
                                 pipeline.addLast(
                                         new DefaultEventExecutorGroup(1),
                                         new RtcpChannelHandler(
-                                                key
+                                                ip,
+                                                port
                                         )
                                 );
                                 break;
@@ -156,6 +160,10 @@ public class NettyChannel {
         logger.debug("| Channel is closed.");
     }
 
+    public String getListenIp() {
+        return listenIp;
+    }
+
     public int getListenPort() {
         return listenPort;
     }
@@ -163,15 +171,7 @@ public class NettyChannel {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    /**
-     * @fn public MessageSender addMessageSender (String ip, int port)
-     * @brief MessageSender 을 새로 추가하는 함수
-     * @param key MessageSender key
-     * @param ip   바인딩할 ip
-     * @param port 바인당할 port
-     * @return 성공 시 생성된 MessageSender 객체, 실패 시 null 반환
-     */
-    public MessageSender addMessageSender (String key, String ip, int port) {
+    public MessageSender addMessageSender (String key, String destIp, int destPort, String fileName) {
         try {
             messageSenderLock.lock();
 
@@ -182,9 +182,12 @@ public class NettyChannel {
 
             MessageSender messageSender = new MessageSender(
                     key,
-                    ip,
-                    port
-            ).start();
+                    listenIp,
+                    listenPort,
+                    destIp,
+                    destPort,
+                    fileName
+            ).init();
 
             if (messageSender == null) {
                 logger.warn("| Fail to create MessageSender. (key={})", key);
@@ -199,7 +202,7 @@ public class NettyChannel {
             logger.debug("| MessageSender is created. (key={})", key);
             return messageSenderMap.get(key);
         } catch (Exception e) {
-            logger.warn("| MessageSender is interrupted. (key={}, ip={}, port={})", key, ip, port, e);
+            logger.warn("| MessageSender is interrupted. (key={}, ip={}, port={})", key, destIp, destPort, e);
             Thread.currentThread().interrupt();
             return null;
         } finally {
@@ -207,11 +210,6 @@ public class NettyChannel {
         }
     }
 
-    /**
-     * @fn public void deleteMessageSender (String key)
-     * @brief Netty MessageSender 을 삭제하는 함수
-     * @param key MessageSender key
-     */
     public void deleteMessageSender (String key) {
         try {
             messageSenderLock.lock();
@@ -292,45 +290,22 @@ public class NettyChannel {
         }
     }
 
-    /**
-     * @fn public boolean sendMessage (String key, ByteBuf buf, String remoteIp, int remotePort)
-     * @brief 메시지 송신 함수
-     * @param key MessageSender key
-     * @param buf ByteBuf (UDP data, IP packet payload)
-     * @param remoteIp Remote IP
-     * @param remotePort Remote Port
-     * @return 성공 시 true, 실패 시 false 반환
-     */
-    public boolean sendMessage (String key, ByteBuf buf, String remoteIp, int remotePort) {
-        if (buf == null) {
-            return false;
+    public void startStreaming(String key) {
+        MessageSender messageSender = getMessageSender(key);
+        if (messageSender == null) {
+            return;
         }
 
-        try {
-            MessageSender messageSender = getMessageSender(key);
-            if (messageSender == null) {
-                messageSender = addMessageSender(key, remoteIp, remotePort);
-            } else if (!messageSender.getIp().equals(remoteIp) || messageSender.getPort() != remotePort) {
-                deleteMessageSender(key);
-                messageSender = addMessageSender(key, remoteIp, remotePort);
-            }
+        messageSender.start();
+    }
 
-            if (messageSender != null) {
-                if (!messageSender.isActive()) {
-                    logger.warn("| MessageSender is not active or deleted. Send failed.");
-                    return false;
-                }
-
-                messageSender.send(buf, remoteIp, remotePort);
-            } else {
-                logger.warn("| MessageSender is not initialized yet.");
-                return false;
-            }
-        } catch (Exception e) {
-            logger.warn("| MessageSender fails to send the message.");
+    public void stopStreaming(String key) {
+        MessageSender messageSender = getMessageSender(key);
+        if (messageSender == null) {
+            return;
         }
 
-        return true;
+        messageSender.stop();
     }
 
 }
