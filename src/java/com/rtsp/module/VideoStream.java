@@ -1,7 +1,6 @@
-package com.rtsp.module;//VideoStream
+package com.rtsp.module;
 
 import org.jcodec.api.FrameGrab;
-import org.jcodec.common.Format;
 import org.jcodec.common.io.NIOUtils;
 import org.jcodec.common.model.Picture;
 import org.jcodec.scale.AWTUtil;
@@ -27,10 +26,10 @@ public class VideoStream {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public VideoStream(String fileName, Format format) {
+    public VideoStream(String fileName) {
         file = new File(fileName);
 
-        if (format.equals(Format.H264) && fileName.endsWith(".h264")) {
+        if (fileName.endsWith(".h264")) {
             try {
                 String newFileName = fileName.substring(
                         0,
@@ -56,18 +55,20 @@ public class VideoStream {
             }
         }
 
-        try {
-            FrameGrab grab = FrameGrab.createFrameGrab(
-                    NIOUtils.readableChannel(file)
-            );
+        if (frameCount == 0) {
+            try {
+                FrameGrab grab = FrameGrab.createFrameGrab(
+                        NIOUtils.readableChannel(file)
+                );
 
-            Picture picture;
-            while (null != (picture = grab.getNativeFrame())) {
-                //logger.debug(picture.getWidth() + "x" + picture.getHeight() + " " + picture.getColor());
-                frameCount++;
+                Picture picture;
+                while (null != (picture = grab.getNativeFrame())) {
+                    //logger.debug(picture.getWidth() + "x" + picture.getHeight() + " " + picture.getColor());
+                    frameCount++;
+                }
+            } catch (Exception e) {
+                logger.warn("Fail to get the frame count. (fileName={})", fileName, e);
             }
-        } catch (Exception e) {
-            logger.warn("Fail to get the frame count. (fileName={})", fileName, e);
         }
     }
 

@@ -10,7 +10,6 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.nio.NioDatagramChannel;
-import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,13 +35,13 @@ public class MessageSender {
 
     private final String destIp;
     private final int destPort;
+    private final int rtcpDestPort;
 
-    /* Fila name */
     private final String fileName;
 
     /////////////////////////////////////////////////////////////////////
 
-    public MessageSender(String id, String listenIp, int listenPort, String destIp, int destPort, String fileName) {
+    public MessageSender(String id, String listenIp, int listenPort, String destIp, int destPort, int rtcpDestPort, String fileName) {
         this.id = id;
 
         this.listenIp = listenIp;
@@ -50,6 +49,7 @@ public class MessageSender {
 
         this.destIp = destIp;
         this.destPort = destPort;
+        this.rtcpDestPort = rtcpDestPort;
 
         this.fileName = fileName;
     }
@@ -64,7 +64,7 @@ public class MessageSender {
         InetAddress address;
         ChannelFuture channelFuture;
 
-        NioEventLoopGroup group = new NioEventLoopGroup(10);
+        NioEventLoopGroup group = new NioEventLoopGroup(100);
         Bootstrap b = new Bootstrap();
         b.group(group).channel(NioDatagramChannel.class)
                 .option(ChannelOption.SO_BROADCAST, false)
@@ -78,8 +78,12 @@ public class MessageSender {
                     public void initChannel (final NioDatagramChannel ch) {
                         final ChannelPipeline pipeline = ch.pipeline();
                         pipeline.addLast(
-                                new DefaultEventExecutorGroup(1),
-                                new MessageSenderChannelHandler()
+                                //new DefaultEventExecutorGroup(1),
+                                new MessageSenderChannelHandler(
+                                        id,
+                                        listenIp,
+                                        listenPort
+                                )
                         );
                     }
                 });
@@ -88,11 +92,11 @@ public class MessageSender {
             address = InetAddress.getByName(destIp);
             channelFuture = b.connect(address, destPort).sync();
             channelFuture.addListener(
-                    (ChannelFutureListener) future -> logger.trace("| Success to connect with remote peer. (ip={}, port={})", destIp, destPort)
+                    (ChannelFutureListener) future -> logger.debug("Success to connect with remote peer. (ip={}, port={})", destIp, destPort)
             );
             channel = channelFuture.channel();
         } catch (Exception e) {
-            logger.warn("| MessageSender.start.Exception. (ip={}, port={})", destIp, destPort, e);
+            logger.warn("MessageSender.start.Exception. (ip={}, port={})", destIp, destPort, e);
             return null;
         }
 
@@ -116,13 +120,21 @@ public class MessageSender {
 
     public void stop () {
         if (channel != null) {
-            TaskManager.getInstance().removeTask(
+             TaskManager.getInstance().removeTask(
                     MessageSender.class.getSimpleName() + "_" + id
             );
+        }
+    }
+
+    public void finish () {
+        if (channel != null) {
+            stop();
 
             channel.closeFuture();
             channel.close();
             channel = null;
+
+            logger.debug("MessageSender is finished.");
         }
     }
 

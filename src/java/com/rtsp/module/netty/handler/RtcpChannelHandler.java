@@ -10,9 +10,6 @@ import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-
 /**
  * @class public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPacket>
  */
@@ -21,16 +18,18 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
     private static final Logger logger = LoggerFactory.getLogger(RtcpChannelHandler.class);
 
     private final String name;
-    private final String ip;
-    private final int port;
+    private final String listenIp;
+    private final int listenPort;
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public RtcpChannelHandler(String ip, int port) {
-        this.name = ip + ":" + port;
-        this.ip = ip;
-        this.port = port;
-        logger.debug("RtcpChannelHandler is created. (name={})", name);
+    public RtcpChannelHandler(String listenIp, int listenPort) {
+        this.name = listenIp + ":" + listenPort;
+
+        this.listenIp = listenIp;
+        this.listenPort = listenPort;
+
+        logger.debug("RtcpChannelHandler is created. (listenIp={}, listenPort={})", listenIp, listenPort);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

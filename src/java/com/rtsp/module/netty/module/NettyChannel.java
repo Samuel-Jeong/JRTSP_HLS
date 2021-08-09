@@ -171,12 +171,12 @@ public class NettyChannel {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public MessageSender addMessageSender (String key, String destIp, int destPort, String fileName) {
+    public MessageSender addMessageSender (String key, String destIp, int destPort, int rtcpDestPort, String fileName) {
         try {
             messageSenderLock.lock();
 
             if (messageSenderMap.get(key) != null) {
-                logger.trace("| MessageSender is already connected. (key={})", key);
+                logger.warn("| MessageSender is already connected. (key={})", key);
                 return null;
             }
 
@@ -186,6 +186,7 @@ public class NettyChannel {
                     listenPort,
                     destIp,
                     destPort,
+                    rtcpDestPort,
                     fileName
             ).init();
 
@@ -220,7 +221,8 @@ public class NettyChannel {
                 return;
             }
 
-            messageSender.stop();
+            messageSender.finish();
+            messageSenderMap.remove(key);
             logger.debug("| MessageSender is deleted. (key={})", key);
         } catch (Exception e) {
             logger.warn("| Fail to delete the MessageSender. (key={})", key, e);
@@ -244,7 +246,7 @@ public class NettyChannel {
                     continue;
                 }
 
-                messageSender.stop();
+                messageSender.finish();
                 messageSenderMap.remove(key);
             }
         } catch (Exception e) {

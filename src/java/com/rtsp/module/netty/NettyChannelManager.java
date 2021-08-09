@@ -71,7 +71,6 @@ public class NettyChannelManager {
             nettyChannel.run(ip, port, channelType);
 
             // 메시지 수신용 채널 open
-            // Port 다르게 해야함
             Channel channel = nettyChannel.openChannel(
                     ip,
                     port
@@ -161,14 +160,14 @@ public class NettyChannelManager {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public void addMessageSender(String key, String listenIp, int listenPort, String destIp, int destPort, String fileName) {
+    public void addMessageSender(String key, String listenIp, int listenPort, String destIp, int destPort, int rtcpDestPort, String fileName) {
         NettyChannel nettyChannel = getChannel(listenIp + ":" + listenPort);
         if (nettyChannel == null) {
             logger.warn("Fail to add the message sender. Not found the netty channel. (listenIp={}, listenPort={})", listenIp, listenPort);
             return;
         }
 
-        nettyChannel.addMessageSender(key, destIp, destPort, fileName);
+        nettyChannel.addMessageSender(key, destIp, destPort, rtcpDestPort, fileName);
     }
 
     public MessageSender getMessageSender(String key, String listenIp, int listenPort) {

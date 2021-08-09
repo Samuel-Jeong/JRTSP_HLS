@@ -1,5 +1,7 @@
 package com.rtsp.module.netty.handler;
 
+import com.rtsp.module.RtspManager;
+import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -14,7 +16,6 @@ import io.netty.util.CharsetUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Random;
 import java.util.UUID;
 
 /**
@@ -30,22 +31,15 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
     private final String listenIp; // local ip
     private final int listenPort; // local(listen) port
 
-    private final String destIp;
-    private int destPort = -1; // rtp destination port
-
-    private String session = null;
-
-    private final Random random = new Random();
-
     ////////////////////////////////////////////////////////////////////////////////
 
     public RtspChannelHandler(String listenIp, int listenPort) {
         this.name = listenIp + ":" + listenPort;
 
-        this.destIp = listenIp;
-
         this.listenIp = listenIp;
         this.listenPort = listenPort;
+
+        logger.debug("RtspChannelHandler is created. (listenIp={}, listenPort={})", listenIp, listenPort);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +52,12 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead (ChannelHandlerContext ctx, Object msg) {
         try {
+            RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit();
+            if (rtspUnit == null) {
+                logger.warn("Fail to get the rtsp unit.");
+                return;
+            }
+
             if (msg instanceof DefaultHttpRequest) {
 
                 DefaultHttpRequest req = (DefaultHttpRequest) msg;
@@ -67,6 +67,8 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                 // 1) OPTIONS
                 if (req.method() == RtspMethods.OPTIONS) {
+                    logger.debug("< OPTIONS");
+
                     res.setStatus(RtspResponseStatuses.OK);
                     res.headers().add(
                             RtspHeaderValues.PUBLIC,
@@ -76,6 +78,8 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                 }
                 // 2) DESCRIBE
                 else if (req.method() == RtspMethods.DESCRIBE) {
+                    logger.debug("< DESCRIBE");
+
                     // TODO: Set port to client
                     ByteBuf buf = Unpooled.copiedBuffer(
                             "c=IN IP4 " + listenIp + "\r\n" +
@@ -99,79 +103,123 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                 }
                 // 3) SETUP
                 else if (req.method() == RtspMethods.SETUP) {
+                    logger.debug("< SETUP");
+
                     String transportHeaderContent = req.headers().get(RtspHeaderNames.TRANSPORT);
                     String clientPortString = transportHeaderContent.substring(
                             transportHeaderContent.lastIndexOf(";") + 1
                     );
-                    String rtpDesPortString = clientPortString.substring(
-                            clientPortString.lastIndexOf("=") + 1
-                    );
-                    if (rtpDesPortString.contains("-")) {
-                        rtpDesPortString = rtpDesPortString.substring(
-                                0,
-                                rtpDesPortString.lastIndexOf("-")
-                        );
-                    }
 
-                    int rtpDestPort = Integer.parseInt(rtpDesPortString);
-                    this.destPort = rtpDestPort;
-                    if (destPort <= 0) {
+                    if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.INTERLEAVED))) {
+                        // TODO: Must send the packet by TCP, not UDP
+                        logger.warn("< Unknown method: {}", req.method());
+                        ctx.write(res).addListener(ChannelFutureListener.CLOSE);
+
+                        rtspUnit.setInterleaved(true);
+                        logger.debug("Interleaved streaming is enabled. (destPort={})", rtspUnit.getDestPort());
+
+                        return;
+                    } else if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.CLIENT_PORT))) {
+                        String rtpDesPortString = clientPortString.substring(
+                                clientPortString.lastIndexOf("=") + 1
+                        );
+                        if (rtpDesPortString.contains("-")) {
+                            String rtcpDesPortString = rtpDesPortString.substring(
+                                    rtpDesPortString.lastIndexOf("-") + 1
+                            );
+                            int rtcpDestPort = Integer.parseInt(rtcpDesPortString);
+                            if (rtcpDestPort <= 0) {
+                                logger.warn("Fail to parse rtcp destination port. (transportHeaderContent={})", transportHeaderContent);
+                                return;
+                            }
+                            rtspUnit.setRtcpDestPort(rtcpDestPort);
+
+                            rtpDesPortString = rtpDesPortString.substring(
+                                    0,
+                                    rtpDesPortString.lastIndexOf("-")
+                            );
+                        }
+
+                        int rtpDestPort = Integer.parseInt(rtpDesPortString);
+                        if (rtpDestPort <= 0) {
+                            logger.warn("Fail to parse rtp destination port. (transportHeaderContent={})", transportHeaderContent);
+                            return;
+                        }
+
+                        // TODO: Destination IP
+                        rtspUnit.setDestIp(listenIp);
+                        rtspUnit.setDestPort(rtpDestPort);
+                        rtspUnit.setSessionId(String.valueOf(UUID.randomUUID()));
+                    } else {
+                        logger.warn("Unknown transport header content. ({})", clientPortString);
                         return;
                     }
 
-                    res.setStatus(RtspResponseStatuses.OK);
-                    session = String.valueOf(UUID.randomUUID());
+                    String sessionId = rtspUnit.getSessionId();
+                    int destPort = rtspUnit.getDestPort();
+                    if (destPort > 0 && sessionId != null) {
+                        NettyChannelManager.getInstance().addMessageSender(
+                                sessionId,
+                                listenIp,
+                                listenPort,
+                                rtspUnit.getDestIp(),
+                                rtspUnit.getDestPort(),
+                                rtspUnit.getRtcpDestPort(),
+                                req.uri()
+                        );
 
-                    NettyChannelManager.getInstance().addMessageSender(
-                            session,
-                            listenIp,
-                            listenPort,
-                            destIp,
-                            rtpDestPort,
-                            req.uri()
-                    );
+                        res.headers().add(
+                                RtspHeaderNames.SESSION,
+                                sessionId
+                        );
+                        res.headers().add(
+                                RtspHeaderNames.TRANSPORT,
+                                "RTP/AVP;unicast;client_port=" + destPort
+                        );
 
-                    res.headers().add(
-                            RtspHeaderNames.SESSION,
-                            session
-                    );
-                    res.headers().add(
-                            RtspHeaderNames.TRANSPORT,
-                            "RTP/AVP;unicast;client_port=" + rtpDestPort
-                    );
-
-                    sendResponse(ctx, req, res);
+                        res.setStatus(RtspResponseStatuses.OK);
+                        sendResponse(ctx, req, res);
+                    } else {
+                        logger.warn("Fail to send the response for SETUP. (sessionId={}, destPort={})", sessionId, destPort);
+                    }
                 }
                 // 4) PLAY
                 else if (req.method() == RtspMethods.PLAY) {
+                    logger.debug("< PLAY");
+
                     res.setStatus(RtspResponseStatuses.OK);
                     sendResponse(ctx, req, res);
 
+                    int destPort = rtspUnit.getDestPort();
                     if (destPort > 0) {
                         logger.debug("Start to stream the media. (rtpDestPort={})", destPort);
-                        NettyChannelManager.getInstance().startStreaming(session, listenIp, listenPort);
+                        NettyChannelManager.getInstance().startStreaming(
+                                rtspUnit.getSessionId(),
+                                listenIp,
+                                listenPort
+                        );
                     }
                 }
                 // 5) TEARDOWN
                 else if (req.method() == RtspMethods.TEARDOWN) {
+                    logger.debug("< TEARDOWN");
+
                     res.setStatus(RtspResponseStatuses.OK);
                     sendResponse(ctx, req, res);
 
+                    int destPort = rtspUnit.getDestPort();
                     if (destPort > 0) {
                         logger.debug("Stop to stream the media. (rtpDestPort={})", destPort);
-                        NettyChannelManager.getInstance().stopStreaming(session, listenIp, listenPort);
-                        NettyChannelManager.getInstance().deleteMessageSender(
-                                session,
+                        NettyChannelManager.getInstance().stopStreaming(
+                                rtspUnit.getSessionId(),
                                 listenIp,
                                 listenPort
                         );
-
-                        destPort = -1;
                     }
                 }
                 // 6) UNKNOWN
                 else {
-                    logger.warn("Unknown method: {}", req.method());
+                    logger.warn("< Unknown method: {}", req.method());
                     ctx.write(res).addListener(ChannelFutureListener.CLOSE);
                 }
             }
@@ -195,6 +243,18 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
         res.headers().set(RtspHeaderNames.CONNECTION, RtspHeaderValues.KEEP_ALIVE);
         ctx.write(res);
+
+        logger.debug("> Send response. ({})", req.method());
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        logger.warn("RtspChannelHandler is deleted by channel inactivity.");
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        logger.warn("RtspChannelHandler is deleted by channel exception. (cause={})", cause.toString());
     }
 
 }

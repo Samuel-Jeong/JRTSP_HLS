@@ -5,6 +5,7 @@ import com.rtsp.module.MessageSender;
 import com.rtsp.module.RtspManager;
 import com.rtsp.module.VideoStream;
 import com.rtsp.module.netty.NettyChannelManager;
+import com.rtsp.module.netty.handler.RtspChannelHandler;
 import com.rtsp.protocol.RtpPacket;
 import com.rtsp.service.TaskManager;
 import com.rtsp.service.base.TaskUnit;
@@ -15,7 +16,6 @@ import org.jcodec.containers.mp4.MP4Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
@@ -26,8 +26,8 @@ public class MessageHandler extends TaskUnit {
 
     private static final Logger logger = LoggerFactory.getLogger(MessageHandler.class);
 
-    private final int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
-    private final int FRAME_PERIOD = 100; //Frame period of the video to stream, in ms
+    private static final int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
+    private static final int FRAME_PERIOD = 100; //Frame period of the video to stream, in ms
 
     private final String key;
 
@@ -75,9 +75,9 @@ public class MessageHandler extends TaskUnit {
             }
 
             video = new VideoStream(
-                    fileName,
-                    Format.H264
+                    fileName
             );
+
             videoLength = video.getFrameCount();
             logger.debug("fileName: {}, frameCount={}", fileName, videoLength);
         } catch (Exception e) {
@@ -96,7 +96,10 @@ public class MessageHandler extends TaskUnit {
         try {
             MessageSender messageSender = NettyChannelManager.getInstance().getMessageSender(key, listenIp, listenPort);
             if (!messageSender.isActive()) {
-                logger.warn("| MessageSender is not active or deleted. Send failed.");
+                logger.warn("| MessageSender is not active or deleted. (key={}, listenIp={}, listenPort={})", key, listenIp, listenPort);
+                TaskManager.getInstance().removeTask(
+                        MessageSender.class.getSimpleName() + "_" + key
+                );
                 return;
             }
 
@@ -142,6 +145,7 @@ public class MessageHandler extends TaskUnit {
                 System.arraycopy(frame, 0, data, 0, imageLength);
             }
 
+            // TODO: Send rtp
             // 3) Builds an RtpPacket object containing the frame
             RtpPacket rtpPacket = new RtpPacket(
                     MJPEG_TYPE,
@@ -158,12 +162,13 @@ public class MessageHandler extends TaskUnit {
             byte[] packetBits = new byte[packetLength];
             rtpPacket.getPacket(packetBits);
 
-            // 6) Send the packet
             ByteBuf buf = Unpooled.copiedBuffer(packetBits);
+            logger.debug(">> Frame[#{}] (size={})", imageIndex, imageLength);
+
+            // 6) Send the packet
             messageSender.send(buf, remoteIp, remotePort);
 
             // 7) Print the packet
-            logger.debug("Send frame #" + imageIndex + ", Frame size: " + imageLength + " (" + packetLength + ")");
             //logger.debug("{}", rtpPacket);
 
             imageIndex++;

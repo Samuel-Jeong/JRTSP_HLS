@@ -4,6 +4,7 @@ import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.module.netty.base.NettyChannelType;
 import com.rtsp.module.netty.module.NettyChannel;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @class public class RtspUnit
@@ -14,21 +15,28 @@ public class RtspUnit {
     private String rtspId = UUID.randomUUID().toString(); // ID of the RTSP session
     private int state = RtspState.INIT;
 
-    private String VideoFileName;
-    private int rtspDestPort = 0;
+    private String fileName;
 
-    private static final int RTCP_RCV_PORT = 19001; // port where the client will receive the RTP packets
-    private static final int RTCP_PERIOD = 400;     // How often to check for control events
     private int congestionLevel = 0;
 
     private NettyChannel rtspChannel;
     private NettyChannel rtcpChannel;
 
+    private final AtomicBoolean isInterleaved = new AtomicBoolean(false);
+
+    private String sessionId = null;
+
+    private String destIp;
+    private int destPort = -1; // rtp destination port
+
+    private static final int rtcpListenPort = 19001; // rtcp listen port
+    private int rtcpDestPort = -1; // rtcp destination port
+
     ////////////////////////////////////////////////////////////////////////////////
 
-    public RtspUnit(String ip, int port) {
-        rtspChannel = NettyChannelManager.getInstance().openChannel(ip, port, NettyChannelType.RTSP);
-        rtcpChannel = NettyChannelManager.getInstance().openChannel(ip, RTCP_RCV_PORT, NettyChannelType.RTCP);
+    public RtspUnit(String listenIp, int listenPort) {
+        rtspChannel = NettyChannelManager.getInstance().openChannel(listenIp, listenPort, NettyChannelType.RTSP);
+        rtcpChannel = NettyChannelManager.getInstance().openChannel(listenIp, rtcpListenPort, NettyChannelType.RTCP);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -49,28 +57,20 @@ public class RtspUnit {
         this.state = state;
     }
 
-    public String getVideoFileName() {
-        return VideoFileName;
+    public String getFileName() {
+        return fileName;
     }
 
-    public void setVideoFileName(String videoFileName) {
-        VideoFileName = videoFileName;
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
     }
 
-    public int getRtspDestPort() {
-        return rtspDestPort;
+    public int getRtcpDestPort() {
+        return rtcpDestPort;
     }
 
-    public void setRtspDestPort(int rtspDestPort) {
-        this.rtspDestPort = rtspDestPort;
-    }
-
-    public static int getRtcpRcvPort() {
-        return RTCP_RCV_PORT;
-    }
-
-    public static int getRtcpPeriod() {
-        return RTCP_PERIOD;
+    public void setRtcpDestPort(int rtcpDestPort) {
+        this.rtcpDestPort = rtcpDestPort;
     }
 
     public int getCongestionLevel() {
@@ -95,5 +95,37 @@ public class RtspUnit {
 
     public void setRtcpChannel(NettyChannel rtcpChannel) {
         this.rtcpChannel = rtcpChannel;
+    }
+
+    public boolean isInterleaved() {
+        return isInterleaved.get();
+    }
+
+    public void setInterleaved(boolean interleaved) {
+        isInterleaved.set(interleaved);
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public String getDestIp() {
+        return destIp;
+    }
+
+    public void setDestIp(String destIp) {
+        this.destIp = destIp;
+    }
+
+    public int getDestPort() {
+        return destPort;
+    }
+
+    public void setDestPort(int destPort) {
+        this.destPort = destPort;
     }
 }
