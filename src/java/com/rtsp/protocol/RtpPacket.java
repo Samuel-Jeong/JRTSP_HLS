@@ -81,7 +81,7 @@ public class RtpPacket implements Serializable {
      *       encrypt according to the method in Section 9.1, because the
      *       packets may flow through a translator that does.
      */
-    protected int seqNum = 0;
+    protected long seqNum = 0;
 
     /** Time stamp: 32 bits
      * The timestamp reflects the sampling instant of the first octet in
@@ -265,7 +265,7 @@ public class RtpPacket implements Serializable {
      * @param payloadLength Payload length
      */
     public void setValue (
-            int version, int padding, int extension, int csrc, int marker, int payloadType, int seqNum,
+            int version, int padding, int extension, int csrc, int marker, int payloadType, long seqNum,
             long timeStamp,
             long ssrc,
             byte[] payload,
@@ -418,12 +418,12 @@ public class RtpPacket implements Serializable {
     }
 
     /**
-     * @fn public void setSeqNum(int i) throws IllegalArgumentException
+     * @fn public void setSeqNum(long i) throws IllegalArgumentException
      * @brief Set the sequence number.
      * @param i sequence number (16 bits)
      */
-    public void setSeqNum(int i) throws IllegalArgumentException {
-        if ((0 <= i) && (i <= ByteUtil.getMaxIntValueForNumBits(16))) {
+    public void setSeqNum(long i) throws IllegalArgumentException {
+        if ((0 <= i) && (i <= ByteUtil.getMaxLongValueForNumBits(16))) {
             seqNum = i;
         } else {
             throw new IllegalArgumentException(RtpException.OUT_OF_RANGE);
@@ -431,11 +431,11 @@ public class RtpPacket implements Serializable {
     }
 
     /**
-     * @fn public int getSeqNum()
+     * @fn public long getSeqNum()
      * @brief Get the sequence number.
      * @return Sequence number value.
      */
-    public int getSeqNum() {
+    public long getSeqNum() {
         return seqNum;
     }
 

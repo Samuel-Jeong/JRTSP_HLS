@@ -1,23 +1,20 @@
 package com.rtsp.module.base;
 
+import com.rtsp.media.Packetizer;
 import com.rtsp.module.ImageTranslator;
 import com.rtsp.module.MessageSender;
 import com.rtsp.module.RtspManager;
 import com.rtsp.module.VideoStream;
 import com.rtsp.module.netty.NettyChannelManager;
-import com.rtsp.module.netty.handler.RtspChannelHandler;
 import com.rtsp.protocol.RtpPacket;
 import com.rtsp.service.TaskManager;
 import com.rtsp.service.base.TaskUnit;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import org.jcodec.common.Format;
-import org.jcodec.containers.mp4.MP4Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.Random;
 
 /**
  * @class public class MessageHandler extends TaskUnit
@@ -44,7 +41,7 @@ public class MessageHandler extends TaskUnit {
 
     ImageTranslator imageTranslator;
 
-    private int ssrc;
+    Packetizer packetizer = new Packetizer();
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,14 +74,12 @@ public class MessageHandler extends TaskUnit {
                 );
             }
 
-            Random random = new Random();
-            ssrc = random.nextInt(Integer.MAX_VALUE);
-
             video = new VideoStream(
                     fileName
             );
 
             videoLength = video.getFrameCount();
+
             logger.debug("fileName: {}, frameCount={}", fileName, videoLength);
         } catch (Exception e) {
             logger.warn("Fail to create the video stream. (fileName={})", fileName, e);
@@ -117,7 +112,7 @@ public class MessageHandler extends TaskUnit {
                 return;
             }
 
-            // 1) Get the next frame to send from the video
+            //
             byte[] data;
             if (video != null) {
                 data = video.getNextFrame(imageIndex);
@@ -127,15 +122,15 @@ public class MessageHandler extends TaskUnit {
             } else {
                 return;
             }
+            //
 
-            int imageLength = data.length;
-
+            //
             RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit();
             if (rtspUnit == null) {
                 return;
             }
 
-            // 2) Adjust quality of the image if there is congestion detected
+            int imageLength = data.length;
             int congestionLevel = rtspUnit.getCongestionLevel();
             if (congestionLevel > 0) {
                 imageTranslator.setCompressionQuality(1.0f - congestionLevel * 0.2f);
@@ -150,29 +145,99 @@ public class MessageHandler extends TaskUnit {
                 imageLength = frame.length;
                 System.arraycopy(frame, 0, data, 0, imageLength);
             }
+            //
 
-            // TODO: Send rtp
-            // 3) Builds an RtpPacket object containing the frame
+            //
+            /*VideoFormat jpegVideoFormat = new VideoFormat(
+                    VideoFormat.JPEG,
+                    video.getDimension(imageIndex),
+                    data.length,
+                    Format.byteArray,
+                    90000.0f
+            );
+
+            VideoFormat jpegRtpVideoFormat = new VideoFormat(
+                    VideoFormat.JPEG_RTP
+            );
+
+            Buffer inBuffer = new Buffer();
+            inBuffer.setFormat(jpegVideoFormat);
+            inBuffer.setLength(data.length);
+            inBuffer.setData(data);
+            inBuffer.setSequenceNumber(imageIndex);
+            inBuffer.setTimeStamp((long) imageIndex * FRAME_PERIOD);
+
+            Buffer outBuffer = new Buffer();
+            outBuffer.setFormat(jpegRtpVideoFormat);
+
+            packetizer.setInputFormat(jpegVideoFormat);
+            packetizer.setOutputFormat(jpegRtpVideoFormat);
+            packetizer.open();
+            for (;;) {
+                int result = packetizer.process(inBuffer, outBuffer);
+                *//*switch (result) {
+                    case 0:
+                        logger.trace("BUFFER_PROCESSED_OK");
+                        break;
+                    case 1:
+                        logger.trace("BUFFER_PROCESSED_FAILED");
+                        break;
+                    case 2:
+                        logger.trace("INPUT_BUFFER_NOT_CONSUMED");
+                        break;
+                    case 3:
+                        logger.trace("OUTPUT_BUFFER_NOT_FILLED");
+                        break;
+                    case 4:
+                        logger.trace("PLUGIN_TERMINATED");
+                        break;
+                    default:
+                        break;
+                }*//*
+
+                RtpPacket rtpPacket = new RtpPacket();
+                int marker = 0;
+                if (result == BUFFER_PROCESSED_OK) {
+                    marker = 1;
+                }
+
+                rtpPacket.setValue(
+                        2, 0, 0, 0, marker, MJPEG_TYPE,
+                        outBuffer.getSequenceNumber(),
+                        outBuffer.getTimeStamp(),
+                        rtspUnit.getSsrc(),
+                        (byte[]) outBuffer.getData(),
+                        outBuffer.getLength()
+                );
+
+                // Send the packet
+                byte[] totalData = rtpPacket.getData();
+                ByteBuf buf = Unpooled.copiedBuffer(totalData);
+                messageSender.send(buf, remoteIp, remotePort);
+                //logger.trace("\t {#{}} ({})", curSeqNum, outBuffer.getLength());
+
+                if (result == BUFFER_PROCESSED_OK) {
+                    break;
+                }
+            }
+            packetizer.close();*/
+
             RtpPacket rtpPacket = new RtpPacket();
             rtpPacket.setValue(
                     2, 0, 0, 0, 0, MJPEG_TYPE, imageIndex,
                     (long) imageIndex * FRAME_PERIOD,
-                    ssrc,
+                    rtspUnit.getSsrc(),
                     data,
-                    imageLength
+                    data.length
             );
 
-            // 4) Get to total length of the full rtp packet to send
+            // Send the packet
             byte[] totalData = rtpPacket.getData();
-
             ByteBuf buf = Unpooled.copiedBuffer(totalData);
-            logger.debug(">> Frame[#{}] (size={})", imageIndex, imageLength);
-
-            // 6) Send the packet
             messageSender.send(buf, remoteIp, remotePort);
 
-            // 7) Print the packet
-            //logger.debug("{}", rtpPacket);
+            logger.debug(">> Frame[#{}] (size={})", imageIndex, data.length);
+            //
 
             imageIndex++;
         }

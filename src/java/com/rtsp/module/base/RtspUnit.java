@@ -3,6 +3,8 @@ package com.rtsp.module.base;
 import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.module.netty.base.NettyChannelType;
 import com.rtsp.module.netty.module.NettyChannel;
+
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -25,6 +27,7 @@ public class RtspUnit {
     private final AtomicBoolean isInterleaved = new AtomicBoolean(false);
 
     private String sessionId = null;
+    private int ssrc;
 
     private String destIp;
     private int destPort = -1; // rtp destination port
@@ -32,14 +35,26 @@ public class RtspUnit {
     private static final int rtcpListenPort = 19001; // rtcp listen port
     private int rtcpDestPort = -1; // rtcp destination port
 
+    private final Random random = new Random();
+
     ////////////////////////////////////////////////////////////////////////////////
 
     public RtspUnit(String listenIp, int listenPort) {
         rtspChannel = NettyChannelManager.getInstance().openChannel(listenIp, listenPort, NettyChannelType.RTSP);
         rtcpChannel = NettyChannelManager.getInstance().openChannel(listenIp, rtcpListenPort, NettyChannelType.RTCP);
+
+        ssrc = random.nextInt(Integer.MAX_VALUE);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
+
+    public int getSsrc() {
+        return ssrc;
+    }
+
+    public void setSsrc() {
+        this.ssrc = random.nextInt(Integer.MAX_VALUE);
+    }
 
     public String getRtspId() {
         return rtspId;
