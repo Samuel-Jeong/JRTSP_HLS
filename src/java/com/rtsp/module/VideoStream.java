@@ -1,9 +1,16 @@
 package com.rtsp.module;
 
 import com.rtsp.ffmpeg.FfmpegManager;
+import com.rtsp.module.base.JpgInfo;
+import com.rtsp.service.TaskManager;
+import com.rtsp.service.base.ConcurrentCyclicFIFO;
+import com.rtsp.service.base.TaskUnit;
 import org.jcodec.api.FrameGrab;
+import org.jcodec.common.DemuxerTrack;
+import org.jcodec.common.io.FileChannelWrapper;
 import org.jcodec.common.io.NIOUtils;
 import org.jcodec.common.model.Picture;
+import org.jcodec.containers.mp4.demuxer.MP4Demuxer;
 import org.jcodec.scale.AWTUtil;
 import org.mp4parser.Container;
 import org.mp4parser.muxer.FileDataSourceImpl;
@@ -14,11 +21,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class VideoStream {
 
@@ -31,9 +37,16 @@ public class VideoStream {
     private final String resultJpgFilePath;
     private final String resultTsFilePath;
 
-    private int curFrameCount = 0;
-    private int frameCount = 0;
-    private final ArrayList<Dimension> dimensionList = new ArrayList<>();
+    private final AtomicLong curFrameCount = new AtomicLong(0);
+    private double curTime = 0;
+    private double totalTime = 0;
+    //private int curFrameCount = 0;
+    //private int totalFrameCount = 0;
+
+    public static final double FRAME_RATE = 0.1;
+
+    private Thread jpgThread = null;
+    private final ConcurrentCyclicFIFO<JpgInfo> buffer = new ConcurrentCyclicFIFO<>();
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,50 +100,48 @@ public class VideoStream {
         resultJpgFilePath = tempJpgFilePath + fileNameOnly + "_%d.jpg";
         resultTsFilePath = tempJpgFilePath + "hls/" + fileNameOnly + ".m3u8";
 
-        if (frameCount == 0) {
+        if (totalTime == 0) {
             try {
-                FrameGrab grab = FrameGrab.createFrameGrab(
-                        NIOUtils.readableChannel(file)
-                );
-
-                Picture picture;
-                while (null != (picture = grab.getNativeFrame())) {
-                    //logger.debug(picture.getWidth() + "x" + picture.getHeight() + " " + picture.getColor());
-                    frameCount++;
-                    dimensionList.add(
-                            new Dimension(
-                                    picture.getWidth(),
-                                    picture.getHeight()
-                            )
-                    );
-                }
+                FileChannelWrapper fileChannelWrapper = NIOUtils.readableChannel(file);
+                MP4Demuxer deMuxer = MP4Demuxer.createMP4Demuxer(fileChannelWrapper);
+                DemuxerTrack video_track = deMuxer.getVideoTrack();
+                totalTime = video_track.getMeta().getTotalDuration();
+                logger.debug("Total duration: {}", totalTime);
             } catch (Exception e) {
                 logger.warn("Fail to get the frame count. (fileName={})", fileName, e);
             }
         }
     }
 
-    public Dimension getDimension(int index) {
-        return dimensionList.get(index);
+    public VideoStream start() {
+        /*if (jpgThread == null) {
+            jpgThread = new Thread(
+                    new JpgManager(buffer)
+            );
+            jpgThread.start();
+        }*/
+
+        return this;
     }
 
-    public int getFrameCount() {
-        return frameCount;
+    public void stop() {
+        /*if (jpgThread != null) {
+            jpgThread.interrupt();
+        }*/
+    }
+
+    public double getTotalFrameCount() {
+        return totalTime;
     }
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public byte[] getNextFrame(int frameIndex) {
+    public byte[] getNextFrame() {
         try {
             Picture picture = FrameGrab.getFrameAtSec(
                     file,
-                    ((double) (frameIndex)) / 5000
+                    FRAME_RATE
             );
-
-            /*Picture picture = FrameGrab.getFrameAtSec(
-                    file,
-                    frameIndex
-            );*/
 
             /*ByteBuffer _out = ByteBuffer
                     .allocate(
@@ -144,7 +155,31 @@ public class VideoStream {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             BufferedImage bufferedImage = AWTUtil.toBufferedImage(picture);
 
-            saveJpg(bufferedImage);
+            //
+            long frameCount = getCurFrameCount();
+            saveJpg(bufferedImage,
+                    tempJpgFilePath,
+                    fileNameOnly,
+                    resultJpgFilePath,
+                    resultTsFilePath,
+                    curTime,
+                    totalTime,
+                    frameCount
+            );
+
+            /*buffer.offer(
+                    new JpgInfo(
+                            bufferedImage,
+                            tempJpgFilePath,
+                            fileNameOnly,
+                            resultJpgFilePath,
+                            resultTsFilePath,
+                            curTime,
+                            totalTime,
+                            frameCount
+                    )
+            );*/
+            //
 
             ImageIO.write(
                     bufferedImage,
@@ -155,6 +190,10 @@ public class VideoStream {
 
             byte[] frame = byteArrayOutputStream.toByteArray();
             byteArrayOutputStream.close();
+
+            curTime += FRAME_RATE;
+            curFrameCount.set(frameCount + 1);
+
             return frame;
         } catch (Exception e) {
             // Ignored
@@ -162,7 +201,11 @@ public class VideoStream {
         }
     }
 
-    private void saveJpg(BufferedImage bufferedImage) {
+    public long getCurFrameCount() {
+        return curFrameCount.get();
+    }
+
+    private void saveJpg(BufferedImage bufferedImage, String tempJpgFilePath, String fileNameOnly, String resultJpgFilePath, String resultTsFilePath, double curTime, double totalTime, long curFrameCount) {
         try {
             String jpgFileName = tempJpgFilePath + fileNameOnly + "_" + curFrameCount + ".jpg";
             File jpgFile = new File(jpgFileName);
@@ -173,17 +216,80 @@ public class VideoStream {
                     jpgFile
             );
 
-            if (jpgFile.exists()) {
-                curFrameCount++;
-                //logger.debug("Success to save the jpg file. (fileName={})", jpgFileName);
+            if ((curFrameCount % 30 == 0)
+                    || (curTime >= totalTime)) {
+                FfmpegManager.convertJpegsToM3u8(
+                        curFrameCount,
+                        resultJpgFilePath,
+                        resultTsFilePath
+                );
             }
-
-            FfmpegManager.convertJpegsToM3u8(
-                    resultJpgFilePath,
-                    resultTsFilePath
-            );
         } catch (Exception e) {
             logger.warn("Fail to save the jpg file. (tempJpgFilePath={})", tempJpgFilePath, e);
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    private static class JpgManager implements Runnable {
+
+        private final ConcurrentCyclicFIFO<JpgInfo> buffer;
+        private int loopIndex = 0;
+
+        protected JpgManager(ConcurrentCyclicFIFO<JpgInfo> buffer) {
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void run() {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    JpgInfo jpgInfo = buffer.poll();
+                    if (jpgInfo == null) {
+                        continue;
+                    }
+
+                    saveJpg(
+                            jpgInfo.getBufferedImage(),
+                            jpgInfo.getTempJpgFilePath(),
+                            jpgInfo.getFileNameOnly(),
+                            jpgInfo.getResultJpgFilePath(),
+                            jpgInfo.getResultTsFilePath(),
+                            jpgInfo.getCurTime(),
+                            jpgInfo.getTotalTime(),
+                            jpgInfo.getCurFrameCount()
+                    );
+                } catch (Exception e) {
+                    logger.warn("JpgManager.run.exception", e);
+                }
+            }
+        }
+
+        private void saveJpg(BufferedImage bufferedImage, String tempJpgFilePath, String fileNameOnly, String resultJpgFilePath, String resultTsFilePath, double curTime, double totalTime, long curFrameCount) {
+            try {
+                String jpgFileName = tempJpgFilePath + fileNameOnly + "_" + curFrameCount + ".jpg";
+                File jpgFile = new File(jpgFileName);
+
+                ImageIO.write(
+                        bufferedImage,
+                        "jpg",
+                        jpgFile
+                );
+
+                if ((loopIndex % 30 == 0)
+                        || (curTime >= totalTime)) {
+                    FfmpegManager.convertJpegsToM3u8(
+                            curFrameCount,
+                            resultJpgFilePath,
+                            resultTsFilePath
+                    );
+                    loopIndex = 0;
+                } else {
+                    loopIndex++;
+                }
+            } catch (Exception e) {
+                logger.warn("Fail to save the jpg file. (tempJpgFilePath={})", tempJpgFilePath, e);
+            }
         }
     }
 

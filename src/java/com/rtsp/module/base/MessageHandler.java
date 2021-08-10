@@ -1,6 +1,5 @@
 package com.rtsp.module.base;
 
-import com.rtsp.media.Packetizer;
 import com.rtsp.module.ImageTranslator;
 import com.rtsp.module.MessageSender;
 import com.rtsp.module.RtspManager;
@@ -15,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+
+import static com.rtsp.module.VideoStream.FRAME_RATE;
 
 /**
  * @class public class MessageHandler extends TaskUnit
@@ -35,13 +36,11 @@ public class MessageHandler extends TaskUnit {
     private final String remoteIp;
     private final int remotePort;
 
-    int imageIndex = 0; //image nb of the image currently transmitted
-    VideoStream video; //VideoStream object used to access video frames
-    private int videoLength;
+    private VideoStream video; //VideoStream object used to access video frames
+    private double curTime = 0;
+    private double totalTime;
 
     ImageTranslator imageTranslator;
-
-    Packetizer packetizer = new Packetizer();
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,11 +75,11 @@ public class MessageHandler extends TaskUnit {
 
             video = new VideoStream(
                     fileName
-            );
+            ).start();
 
-            videoLength = video.getFrameCount();
+            totalTime = video.getTotalFrameCount();
 
-            logger.debug("fileName: {}, frameCount={}", fileName, videoLength);
+            logger.debug("fileName: {}, frameCount={}", fileName, totalTime);
         } catch (Exception e) {
             logger.warn("Fail to create the video stream. (fileName={})", fileName, e);
             video = null;
@@ -105,7 +104,8 @@ public class MessageHandler extends TaskUnit {
             }
 
             // 모두 비디오 프레임 전송하면 자동 소멸
-            if (imageIndex >= videoLength) {
+            if (curTime >= totalTime) {
+                video.stop();
                 TaskManager.getInstance().removeTask(
                         MessageSender.class.getSimpleName() + "_" + key
                 );
@@ -115,7 +115,7 @@ public class MessageHandler extends TaskUnit {
             //
             byte[] data;
             if (video != null) {
-                data = video.getNextFrame(imageIndex);
+                data = video.getNextFrame();
                 if (data == null) {
                     return;
                 }
@@ -147,85 +147,11 @@ public class MessageHandler extends TaskUnit {
             }
             //
 
-            //
-            /*VideoFormat jpegVideoFormat = new VideoFormat(
-                    VideoFormat.JPEG,
-                    video.getDimension(imageIndex),
-                    data.length,
-                    Format.byteArray,
-                    90000.0f
-            );
-
-            VideoFormat jpegRtpVideoFormat = new VideoFormat(
-                    VideoFormat.JPEG_RTP
-            );
-
-            Buffer inBuffer = new Buffer();
-            inBuffer.setFormat(jpegVideoFormat);
-            inBuffer.setLength(data.length);
-            inBuffer.setData(data);
-            inBuffer.setSequenceNumber(imageIndex);
-            inBuffer.setTimeStamp((long) imageIndex * FRAME_PERIOD);
-
-            Buffer outBuffer = new Buffer();
-            outBuffer.setFormat(jpegRtpVideoFormat);
-
-            packetizer.setInputFormat(jpegVideoFormat);
-            packetizer.setOutputFormat(jpegRtpVideoFormat);
-            packetizer.open();
-            for (;;) {
-                int result = packetizer.process(inBuffer, outBuffer);
-                *//*switch (result) {
-                    case 0:
-                        logger.trace("BUFFER_PROCESSED_OK");
-                        break;
-                    case 1:
-                        logger.trace("BUFFER_PROCESSED_FAILED");
-                        break;
-                    case 2:
-                        logger.trace("INPUT_BUFFER_NOT_CONSUMED");
-                        break;
-                    case 3:
-                        logger.trace("OUTPUT_BUFFER_NOT_FILLED");
-                        break;
-                    case 4:
-                        logger.trace("PLUGIN_TERMINATED");
-                        break;
-                    default:
-                        break;
-                }*//*
-
-                RtpPacket rtpPacket = new RtpPacket();
-                int marker = 0;
-                if (result == BUFFER_PROCESSED_OK) {
-                    marker = 1;
-                }
-
-                rtpPacket.setValue(
-                        2, 0, 0, 0, marker, MJPEG_TYPE,
-                        outBuffer.getSequenceNumber(),
-                        outBuffer.getTimeStamp(),
-                        rtspUnit.getSsrc(),
-                        (byte[]) outBuffer.getData(),
-                        outBuffer.getLength()
-                );
-
-                // Send the packet
-                byte[] totalData = rtpPacket.getData();
-                ByteBuf buf = Unpooled.copiedBuffer(totalData);
-                messageSender.send(buf, remoteIp, remotePort);
-                //logger.trace("\t {#{}} ({})", curSeqNum, outBuffer.getLength());
-
-                if (result == BUFFER_PROCESSED_OK) {
-                    break;
-                }
-            }
-            packetizer.close();*/
-
+            long curFrameCount = video.getCurFrameCount();
             RtpPacket rtpPacket = new RtpPacket();
             rtpPacket.setValue(
-                    2, 0, 0, 0, 0, MJPEG_TYPE, imageIndex,
-                    (long) imageIndex * FRAME_PERIOD,
+                    2, 0, 0, 0, 0, MJPEG_TYPE, curFrameCount,
+                    curFrameCount * FRAME_PERIOD,
                     rtspUnit.getSsrc(),
                     data,
                     data.length
@@ -236,10 +162,10 @@ public class MessageHandler extends TaskUnit {
             ByteBuf buf = Unpooled.copiedBuffer(totalData);
             messageSender.send(buf, remoteIp, remotePort);
 
-            logger.debug(">> Frame[#{}] (size={})", imageIndex, data.length);
+            logger.debug(">> Frame[#{}] (size={})", curFrameCount, data.length);
             //
 
-            imageIndex++;
+            curTime += FRAME_RATE;
         }
         catch(Exception e) {
             logger.warn("MessagesHandler.run.Exception", e);

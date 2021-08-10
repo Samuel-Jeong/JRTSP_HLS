@@ -1,5 +1,9 @@
 package com.rtsp.ffmpeg;
 
+import io.lindstrom.m3u8.model.MediaPlaylist;
+import io.lindstrom.m3u8.model.MediaSegment;
+import io.lindstrom.m3u8.parser.MediaPlaylistParser;
+import io.lindstrom.m3u8.parser.ParsingMode;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.FFmpegUtils;
@@ -16,6 +20,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +39,51 @@ public class FfmpegManager {
         //Nothing
     }
 
-    public static void convertJpegsToM3u8(String srcTotalFilePath, String destTotalFilePath) {
+    public static MediaPlaylist createPlayList() {
+        MediaPlaylist mediaPlaylist = MediaPlaylist.builder()
+                .version(3)
+                .targetDuration(2)
+                .mediaSequence(0)
+                .ongoing(false)
+                .addMediaSegments(
+                        MediaSegment.builder()
+                                .duration(9.009)
+                                .uri("http://media.example.com/first.ts")
+                                .build(),
+                        MediaSegment.builder()
+                                .duration(9.009)
+                                .uri("http://media.example.com/second.ts")
+                                .build(),
+                        MediaSegment.builder()
+                                .duration(3.003)
+                                .uri("http://media.example.com/third.ts")
+                                .build())
+                .build();
+
+        MediaPlaylistParser parser = new MediaPlaylistParser();
+        logger.debug("{}", parser.writePlaylistAsString(mediaPlaylist));
+
+        return mediaPlaylist;
+    }
+
+    public static void updatePlayList(String m3u8Path, int mediaSequence) {
+        try {
+            MediaPlaylistParser parser = new MediaPlaylistParser(ParsingMode.STRICT);
+            MediaPlaylist playlist = parser.readPlaylist(Paths.get(m3u8Path));
+            MediaPlaylist updated = MediaPlaylist.builder()
+                    .from(playlist)
+                    .version(3)
+                    .mediaSequence(mediaSequence)
+                    .build();
+            logger.debug("{}", parser.writePlaylistAsString(updated));
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.updatePlayList.Exception", e);
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    public static void convertJpegsToM3u8(long curFrameCount, String srcTotalFilePath, String destTotalFilePath) {
         String destFilePathOnly = destTotalFilePath.substring(
                 0,
                 destTotalFilePath.lastIndexOf("/")
@@ -45,26 +94,21 @@ public class FfmpegManager {
             logger.debug("Success to make the directory. ({})", destFilePathOnly);
         }
 
-        /*String destFileNameOnly = destTotalFilePath.substring(
-                destTotalFilePath.lastIndexOf("/") + 1,
-                destTotalFilePath.lastIndexOf(".")
-        ); // except for file extension*/
-
         //
         try {
             FFmpeg ffmpeg = new FFmpeg("/usr/local/bin/ffmpeg");
             FFprobe ffprobe = new FFprobe("/usr/local/bin/ffprobe");
-            FFmpegProbeResult in = ffprobe.probe(srcTotalFilePath);
+            //FFmpegProbeResult in = ffprobe.probe(srcTotalFilePath);
 
             FFmpegBuilder builder = new FFmpegBuilder()
                     .overrideOutputFiles(true) // Override the output if it exists
-                    .setInput(in)     // Filename, or a FFmpegProbeResult
-                    .addOutput(destTotalFilePath)   // Filename for the destination
-                    .setFormat("hls")        // Format is inferred from filename, or can be set
-                    //.setTargetSize(250_000)  // Aim for a 250KB file
-                    //.disableSubtitle()       // No subtiles
-                    //.setVideoCodec("libx264")     // Video using x264
-                    //.setVideoFrameRate(1000, 1)     // at 24 frames per second
+                    .setInput(srcTotalFilePath) // Filename, or a FFmpegProbeResult
+                    .addOutput(destTotalFilePath) // Filename for the destination
+                    .setFormat("hls") // Format is inferred from filename, or can be set
+                    .setVideoFrameRate(10, 1) // frame per second
+                    .addExtraArgs("-segment_start_number", String.valueOf(curFrameCount))
+                    .addExtraArgs("-hls_list_size", "5")
+                    .addExtraArgs("-segment_list_flags", "live")
                     //.setVideoResolution(640, 480) // at 640x480 resolution
                     .done();
 
@@ -94,17 +138,19 @@ public class FfmpegManager {
             });
             job.run();*/
         } catch (Exception e) {
-            logger.warn("FfmpegManager.convertJpegsToM3u8.Exception", e);
+            // Ignored
+            //logger.warn("FfmpegManager.convertJpegsToM3u8.Exception", e);
         }
         //
 
+        //
         /*List<String> cmdList = new ArrayList<>();
         String cmd =
                 "/usr/local/bin/" + FFMPEG_TAG +
                 " -y " + // Overwrite output files without asking.
                 //"-i /Users/jamesj/Desktop/live/test/tempJpg_test/temp_jpg_%d.jpg " +
                 "-i " + srcTotalFilePath + " " +
-                //"-framerate 2 " + // Set the frame rate for the video stream. It defaults to 25.
+                "-framerate 10 " + // Set the frame rate for the video stream. It defaults to 25.
                 //"-frames:v 40 " + // Set the number of video frames to output. This is an obsolete alias for -frames:v, which you should use instead.
                 //"-g 2 " + // Group of picture (GOP) 크기 설정
                 "-f hls " + // File Type : HLS
@@ -114,9 +160,9 @@ public class FfmpegManager {
                 //"-hls_delete_threshold 1 " + // 세그먼트를 삭제하기 전에 디스크에 보관할 참조되지 않은 세그먼트 수를 설정 (default: 1)
                 "-hls_flags omit_endlist " + // 재생 목록 끝에 EXT-X-ENDLIST 태그를 추가하지 않음
                 //"-hls_flags single_file" + // Muxer 는 모든 세그먼트를 단일 MPEG-TS 파일에 저장하고 재생 목록에서 바이트 범위를 사용
-                //"-hls_start_number_source 0 " + // 지정된 소스에 따라 재생목록 시퀀스 번호(#EXT-X-MEDIA-SEQUENCE)를 시작 (default: generic)
+                //"-hls_start_number_source " +  + " " + // 지정된 소스에 따라 재생목록 시퀀스 번호(#EXT-X-MEDIA-SEQUENCE)를 시작 (default: generic)
                 //"-start_number 0 " + // hls_start_number_source 값이 generic이면 지정된 번호에서 재생 목록 시퀀스 번호(#EXT-X-MEDIA-SEQUENCE)를 시작 (default), hls_flags single_file이 설정되지 않은 경우 세그먼트 및 자막 파일 이름의 시작 시퀀스 번호도 지정 (default: 0)
-                //"-segment_start_number 0 " + // Set the sequence number of the first segment (default: 0)
+                "-segment_start_number " + curFrameCount + " " + // Set the sequence number of the first segment (default: 0)
                 "-segment_list_flags live " + // Allow live-friendly file generation
                 //"-strftime 1" + // local time 사용
                 //"-strftime_mkdir 1" + // local time 으로 설정된 하위 디렉토리 생성
@@ -131,12 +177,18 @@ public class FfmpegManager {
         BufferedReader stdOut = null;
         Process process = null;
         try {
-            process = new ProcessBuilder(cmdList).start();
+            process = Runtime.getRuntime().exec(cmdList.toArray(new String[0]));
 
             String str;
             stdOut = new BufferedReader(new InputStreamReader(process.getInputStream()));
             while ((str = stdOut.readLine()) != null) {
                 logger.debug(str);
+            }
+
+            process.waitFor();
+            int exitValue = process.exitValue();
+            if (exitValue != 0) {
+                throw new RuntimeException("exit code is not 0 [" + exitValue + "]");
             }
 
             logger.debug("Success to convert. (fileName={})", destTotalFilePath);
@@ -155,6 +207,7 @@ public class FfmpegManager {
                 }
             }
         }*/
+        //
     }
 
 }

@@ -20,6 +20,12 @@
     <dependencies>
 
         <dependency>
+            <groupId>io.lindstrom</groupId>
+            <artifactId>m3u8-parser</artifactId>
+            <version>0.19</version>
+        </dependency>
+
+        <dependency>
             <groupId>net.bramp.ffmpeg</groupId>
             <artifactId>ffmpeg</artifactId>
             <version>0.6.2</version>
