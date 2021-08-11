@@ -76,7 +76,7 @@ public class NettyChannel {
                             case NettyChannelType.RTSP:
                                 pipeline.addLast(new RtspDecoder(), new RtspEncoder());
                                 pipeline.addLast(
-                                        new DefaultEventExecutorGroup(1),
+                                        //new DefaultEventExecutorGroup(1),
                                         new RtspChannelHandler(
                                                 ip,
                                                 port
@@ -85,7 +85,7 @@ public class NettyChannel {
                                 break;
                             case NettyChannelType.RTCP:
                                 pipeline.addLast(
-                                        new DefaultEventExecutorGroup(1),
+                                        //new DefaultEventExecutorGroup(1),
                                         new RtcpChannelHandler(
                                                 ip,
                                                 port
@@ -171,7 +171,7 @@ public class NettyChannel {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public MessageSender addMessageSender (String key, String destIp, int destPort, int rtcpDestPort, String fileName) {
+    public MessageSender addMessageSender (String key, String fileName) {
         try {
             messageSenderLock.lock();
 
@@ -184,9 +184,6 @@ public class NettyChannel {
                     key,
                     listenIp,
                     listenPort,
-                    destIp,
-                    destPort,
-                    rtcpDestPort,
                     fileName
             ).init();
 
@@ -203,7 +200,7 @@ public class NettyChannel {
             logger.debug("| MessageSender is created. (key={})", key);
             return messageSenderMap.get(key);
         } catch (Exception e) {
-            logger.warn("| MessageSender is interrupted. (key={}, ip={}, port={})", key, destIp, destPort, e);
+            logger.warn("| MessageSender is interrupted. (key={})", key, e);
             Thread.currentThread().interrupt();
             return null;
         } finally {
@@ -292,13 +289,13 @@ public class NettyChannel {
         }
     }
 
-    public void startStreaming(String key) {
+    public void startStreaming(String key, String destIp, int destPort, int rtcpDestPort) {
         MessageSender messageSender = getMessageSender(key);
         if (messageSender == null) {
             return;
         }
 
-        messageSender.start();
+        messageSender.start(destIp, destPort, rtcpDestPort);
     }
 
     public void stopStreaming(String key) {

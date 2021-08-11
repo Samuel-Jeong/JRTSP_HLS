@@ -35,22 +35,12 @@ public class MessageSenderChannelHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        logger.warn("MessageSender is deleted by channel inactivity.");
-        NettyChannelManager.getInstance().deleteMessageSender(
-                id,
-                listenIp,
-                listenPort
-        );
+        //logger.warn("MessageSender is deleted by channel inactivity.");
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        logger.warn("MessageSender is deleted by channel exception. (cause={})", cause.toString());
-        NettyChannelManager.getInstance().deleteMessageSender(
-                id,
-                listenIp,
-                listenPort
-        );
+        //logger.warn("MessageSender is deleted by channel exception. (cause={})", cause.toString());
     }
 
 }

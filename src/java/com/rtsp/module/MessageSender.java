@@ -1,8 +1,7 @@
 package com.rtsp.module;
 
-import com.rtsp.module.base.MessageHandler;
+import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.handler.MessageSenderChannelHandler;
-import com.rtsp.service.TaskManager;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -13,6 +12,7 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
@@ -33,23 +33,29 @@ public class MessageSender {
     private final String listenIp;
     private final int listenPort;
 
-    private final String destIp;
-    private final int destPort;
-    private final int rtcpDestPort;
+    private String destIp = null;
+    private int destPort = 0;
+    private int rtcpDestPort = 0;
 
+    private final VideoStream video;
     private final String fileName;
+
+    private File m3u8File;
+
+    private NioEventLoopGroup group;
+    private final Bootstrap b = new Bootstrap();
 
     /////////////////////////////////////////////////////////////////////
 
-    public MessageSender(String id, String listenIp, int listenPort, String destIp, int destPort, int rtcpDestPort, String fileName) {
+    public MessageSender(String id, String listenIp, int listenPort, String fileName) {
         this.id = id;
 
         this.listenIp = listenIp;
         this.listenPort = listenPort;
 
-        this.destIp = destIp;
-        this.destPort = destPort;
-        this.rtcpDestPort = rtcpDestPort;
+        this.video = new VideoStream(
+                fileName
+        );
 
         this.fileName = fileName;
     }
@@ -61,11 +67,7 @@ public class MessageSender {
             return null;
         }
 
-        InetAddress address;
-        ChannelFuture channelFuture;
-
-        NioEventLoopGroup group = new NioEventLoopGroup(100);
-        Bootstrap b = new Bootstrap();
+        group = new NioEventLoopGroup(100);
         b.group(group).channel(NioDatagramChannel.class)
                 .option(ChannelOption.SO_BROADCAST, false)
                 .option(ChannelOption.SO_SNDBUF, 33554432)
@@ -88,48 +90,54 @@ public class MessageSender {
                     }
                 });
 
-        try {
-            address = InetAddress.getByName(destIp);
-            channelFuture = b.connect(address, destPort).sync();
-            channelFuture.addListener(
-                    (ChannelFutureListener) future -> logger.debug("Success to connect with remote peer. (ip={}, port={})", destIp, destPort)
-            );
-            channel = channelFuture.channel();
-        } catch (Exception e) {
-            logger.warn("MessageSender.start.Exception. (ip={}, port={})", destIp, destPort, e);
-            return null;
+        RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit();
+        if (rtspUnit != null) {
+            rtspUnit.setSsrc();
         }
 
         return this;
     }
 
-    public void start () {
-        TaskManager.getInstance().addTask(
-                MessageSender.class.getSimpleName() + "_" + id,
-                new MessageHandler(
-                        1,
-                        id,
-                        listenIp,
-                        listenPort,
-                        destIp,
-                        destPort,
-                        fileName
-                )
-        );
-    }
+    public void start (String destIp, int destPort, int rtcpDestPort) {
+        try {
+            if (!destIp.equals(this.destIp)) {
+                logger.debug("Dest IP is changed. ({} > {})", this.destIp, destIp);
+                this.destIp = destIp;
+            }
 
-    public void stop () {
-        if (channel != null) {
-             TaskManager.getInstance().removeTask(
-                    MessageSender.class.getSimpleName() + "_" + id
+            if (destPort != this.destPort) {
+                logger.debug("Dest Port is changed. ({} > {})", this.destPort, destPort);
+                this.destPort = destPort;
+            }
+
+            if (rtcpDestPort != this.rtcpDestPort) {
+                logger.debug("Dest Rtcp Port is changed. ({} > {})", this.rtcpDestPort, rtcpDestPort);
+                this.rtcpDestPort = rtcpDestPort;
+            }
+
+            if (m3u8File == null) {
+                String destFilePath = video.getResultM3U8FilePath();
+                m3u8File = new File(destFilePath);
+            }
+
+            InetAddress address = InetAddress.getByName(destIp);
+            ChannelFuture channelFuture = b.connect(address, destPort).sync();
+            channelFuture.addListener(
+                    (ChannelFutureListener) future -> logger.debug("Success to connect with remote peer. (ip={}, port={})", destIp, destPort)
             );
+            channel = channelFuture.channel();
+        } catch (Exception e) {
+            logger.warn("MessageSender.start.Exception", e);
         }
     }
 
-    public void finish () {
-        if (channel != null) {
-            stop();
+    public void stop () {
+        if (m3u8File != null) {
+            removeFile(m3u8File);
+            m3u8File = null;
+        }
 
+        if (channel != null) {
             channel.closeFuture();
             channel.close();
             channel = null;
@@ -138,7 +146,29 @@ public class MessageSender {
         }
     }
 
+    private void removeFile(File file) {
+        if (file.exists()) {
+            if (file.delete()) {
+                logger.trace("Success to remove. (file={})", file.getAbsolutePath());
+            } else {
+                logger.warn("Fail to remove files. (file={})", file.getAbsolutePath());
+            }
+        }
+    }
+
+    public void finish () {
+        stop();
+
+        if (group != null) {
+            group.shutdownGracefully();
+        }
+    }
+
     /////////////////////////////////////////////////////////////////////
+
+    public VideoStream getVideo() {
+        return video;
+    }
 
     /**
      * @fn public boolean isActive()

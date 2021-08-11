@@ -6,24 +6,13 @@ import io.lindstrom.m3u8.parser.MediaPlaylistParser;
 import io.lindstrom.m3u8.parser.ParsingMode;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
-import net.bramp.ffmpeg.FFmpegUtils;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
-import net.bramp.ffmpeg.job.FFmpegJob;
-import net.bramp.ffmpeg.probe.FFmpegProbeResult;
-import net.bramp.ffmpeg.progress.Progress;
-import net.bramp.ffmpeg.progress.ProgressListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @class public class FfmpegManager
@@ -35,9 +24,13 @@ public class FfmpegManager {
 
     public static final String FFMPEG_TAG = "ffmpeg";
 
+    ////////////////////////////////////////////////////////////////////////////////
+
     public FfmpegManager() {
         //Nothing
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     public static MediaPlaylist createPlayList() {
         MediaPlaylist mediaPlaylist = MediaPlaylist.builder()
@@ -83,7 +76,7 @@ public class FfmpegManager {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public static void convertJpegsToM3u8(long curFrameCount, String srcTotalFilePath, String destTotalFilePath) {
+    public void convertMp4ToM3u8(String srcFilePath, String destTotalFilePath) {
         String destFilePathOnly = destTotalFilePath.substring(
                 0,
                 destTotalFilePath.lastIndexOf("/")
@@ -101,14 +94,21 @@ public class FfmpegManager {
             //FFmpegProbeResult in = ffprobe.probe(srcTotalFilePath);
 
             FFmpegBuilder builder = new FFmpegBuilder()
-                    .overrideOutputFiles(true) // Override the output if it exists
-                    .setInput(srcTotalFilePath) // Filename, or a FFmpegProbeResult
-                    .addOutput(destTotalFilePath) // Filename for the destination
-                    .setFormat("hls") // Format is inferred from filename, or can be set
-                    .setVideoFrameRate(10, 1) // frame per second
-                    .addExtraArgs("-segment_start_number", String.valueOf(curFrameCount))
+                    .overrideOutputFiles(true)
+                    .setInput(srcFilePath)
+                    .addOutput(destTotalFilePath)
+
+                    .setFormat("hls")
+                    //.addExtraArgs("-segment_start_number", String.valueOf(curTsIndex))
+                    //.addExtraArgs("-hls_start_number_source", String.valueOf(curTsIndex))
+                    //.addExtraArgs("-hls_delete_threshold", "5")
+                    //.addExtraArgs("-start_number", String.valueOf(curTsIndex))
                     .addExtraArgs("-hls_list_size", "5")
+                    .addExtraArgs("-hls_time", "2")
                     .addExtraArgs("-segment_list_flags", "live")
+                    //.addExtraArgs("-hls_flags", "omit_endlist")
+
+                    //.setVideoFrameRate(10, 1)
                     //.setVideoResolution(640, 480) // at 640x480 resolution
                     .done();
 

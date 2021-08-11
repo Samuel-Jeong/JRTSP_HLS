@@ -160,14 +160,14 @@ public class NettyChannelManager {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public void addMessageSender(String key, String listenIp, int listenPort, String destIp, int destPort, int rtcpDestPort, String fileName) {
+    public void addMessageSender(String key, String listenIp, int listenPort, String fileName) {
         NettyChannel nettyChannel = getChannel(listenIp + ":" + listenPort);
         if (nettyChannel == null) {
             logger.warn("Fail to add the message sender. Not found the netty channel. (listenIp={}, listenPort={})", listenIp, listenPort);
             return;
         }
 
-        nettyChannel.addMessageSender(key, destIp, destPort, rtcpDestPort, fileName);
+        nettyChannel.addMessageSender(key, fileName);
     }
 
     public MessageSender getMessageSender(String key, String listenIp, int listenPort) {
@@ -190,14 +190,14 @@ public class NettyChannelManager {
         nettyChannel.deleteMessageSender(key);
     }
 
-    public void startStreaming(String key, String listenIp, int listenPort) {
+    public void startStreaming(String key, String listenIp, int listenPort, String destIp, int destPort, int rtcpDestPort) {
         NettyChannel nettyChannel = getChannel(listenIp + ":" + listenPort);
         if (nettyChannel == null) {
             logger.warn("Fail to start to stream media. Not found the netty channel. (listenIp={}, listenPort={})", listenIp, listenPort);
             return;
         }
 
-        nettyChannel.startStreaming(key);
+        nettyChannel.startStreaming(key, destIp, destPort, rtcpDestPort);
     }
 
     public void stopStreaming(String key, String listenIp, int listenPort) {
