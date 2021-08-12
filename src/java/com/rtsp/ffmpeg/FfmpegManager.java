@@ -8,10 +8,17 @@ import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
+import org.mp4parser.Container;
+import org.mp4parser.muxer.FileDataSourceImpl;
+import org.mp4parser.muxer.Movie;
+import org.mp4parser.muxer.builder.DefaultMp4Builder;
+import org.mp4parser.muxer.tracks.h264.H264TrackImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 
 /**
@@ -75,6 +82,34 @@ public class FfmpegManager {
     }
 
     ////////////////////////////////////////////////////////////////////////////////
+
+    public void convertH264ToMp4(String srcFilePath) {
+        if (srcFilePath.endsWith(".h264")) {
+            try {
+                String newFileName = srcFilePath.substring(
+                        0,
+                        srcFilePath.lastIndexOf(".")
+                );
+                newFileName += ".mp4";
+
+                H264TrackImpl h264Track = new H264TrackImpl(
+                        new FileDataSourceImpl(srcFilePath)
+                );
+
+                Movie movie = new Movie();
+                movie.addTrack(h264Track);
+
+                Container mp4file = new DefaultMp4Builder().build(movie);
+                FileChannel fc = new FileOutputStream(newFileName).getChannel();
+                mp4file.writeContainer(fc);
+                fc.close();
+
+                logger.warn("Success to convert the h264 file. (srcFilePath={}, newFileName={})", srcFilePath, newFileName);
+            } catch (Exception e) {
+                logger.warn("Fail to convert the h264 file. (srcFileName={})", srcFilePath, e);
+            }
+        }
+    }
 
     public void convertMp4ToM3u8(String srcFilePath, String destTotalFilePath) {
         String destFilePathOnly = destTotalFilePath.substring(

@@ -11,9 +11,8 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Resource Manager
- *
- * @author Donghyun Kim
+ * @class public class ResourceManager
+ * @brief ResourceManager class
  */
 public class ResourceManager {
 
@@ -43,7 +42,7 @@ public class ResourceManager {
     ////////////////////////////////////////////////////////////////////////////////
 
     public void initResource() {
-        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        //ConfigManager configManager = AppInstance.getInstance().getConfigManager();
         //localUdpPortMin = configManager.getNettyServerPort();
         localUdpPortMin = 5000;
         localUdpPortMax = localUdpPortMin + 2000;

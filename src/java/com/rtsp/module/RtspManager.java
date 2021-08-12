@@ -3,6 +3,7 @@ package com.rtsp.module;
 import com.rtsp.fsm.RtspFsmManager;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
+import com.rtsp.service.ResourceManager;
 
 /**
  * @class public class RtspManager
@@ -48,6 +49,11 @@ public class RtspManager {
                             + "_" +
                             rtspUnit.getRtcpChannel().getListenPort()
             );
+
+            int port = rtspUnit.getClientPort();
+            if (port > 0) {
+                ResourceManager.getInstance().restorePort(port);
+            }
         }
     }
 

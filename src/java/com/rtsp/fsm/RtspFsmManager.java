@@ -90,15 +90,6 @@ public class RtspFsmManager {
                 null, 0, 0
         );*/
         //
-
-        //
-        stateManager.addStateUnit(
-                rtspUnit.getRtspStateUnitId(),
-                rtspStateHandler.getName(),
-                RtspState.INIT,
-                rtspUnit
-        );
-        //
     }
 
 }

@@ -36,6 +36,8 @@ public class ServiceManager {
     ////////////////////////////////////////////////////////////////////////////////
 
     private void start () {
+        ResourceManager.getInstance().initResource();
+
         RtspManager.getInstance().openRtspUnit("127.0.0.1", 8554);
 
         logger.debug("| All services are opened.");
@@ -45,6 +47,8 @@ public class ServiceManager {
         TaskManager.getInstance().stop();
 
         RtspManager.getInstance().closeRtspUnit();
+
+        ResourceManager.getInstance().releaseResource();
 
         isQuit = true;
 

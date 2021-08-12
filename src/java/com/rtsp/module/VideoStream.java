@@ -1,78 +1,71 @@
 package com.rtsp.module;
 
 import com.rtsp.module.base.RtspUnit;
-import com.rtsp.mpegts.NioUtils;
-import org.jcodec.common.DemuxerTrack;
-import org.jcodec.common.io.FileChannelWrapper;
-import org.jcodec.common.io.NIOUtils;
-import org.jcodec.containers.mp4.demuxer.MP4Demuxer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 
+/**
+ * @class public class VideoStream
+ * @brief VideoStream class
+ * URI 가 M3U8 이어야하고, 스트리밍하기 위한 MP4 파일을 지정한다.
+ */
 public class VideoStream {
 
     private static final Logger logger = LoggerFactory.getLogger(VideoStream.class);
 
-    private final String fileName;
+    private final String mp4FileName;
     private final String resultM3U8FilePath;
-
-    private double totalTime = 0;
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public VideoStream(String fileName) {
-        fileName = RtspUnit.getPureFileName(fileName);
+    public VideoStream(String uri) {
+        String mp4FileName = RtspUnit.getPureFileName(uri);
 
-        if (fileName.endsWith(".m3u8")) {
-            fileName = fileName.substring(
+        if (mp4FileName.endsWith(".m3u8")) {
+            mp4FileName = mp4FileName.substring(
                     0,
-                    fileName.lastIndexOf(".")
+                    mp4FileName.lastIndexOf(".")
             );
-            fileName += ".mp4";
+            mp4FileName += ".mp4";
         }
 
-        logger.debug("fileName={}", fileName);
+        logger.debug("Target mp4FileName={}", mp4FileName);
+        this.mp4FileName = mp4FileName;
 
-        File file = new File(fileName);
-        String fileTotalPath = fileName;
-        this.fileName = fileName;
-
-        String tempFilePath = fileTotalPath.substring(
+        String mp4FilePath = mp4FileName.substring(
                 0,
-                fileTotalPath.lastIndexOf("/")
+                mp4FileName.lastIndexOf("/")
         );
 
-        String fileNameOnly = fileTotalPath.substring(
-                fileTotalPath.lastIndexOf("/") + 1,
-                fileTotalPath.lastIndexOf(".")
+        String mp4FileNameOnly = mp4FileName.substring(
+                mp4FileName.lastIndexOf("/") + 1,
+                mp4FileName.lastIndexOf(".")
         );
 
-        resultM3U8FilePath = tempFilePath + File.separator + fileNameOnly + ".m3u8";
-        logger.debug("fileName={}, resultM3U8FilePath={}", fileName, resultM3U8FilePath);
-
-        try {
-            FileChannelWrapper fileChannelWrapper = NIOUtils.readableChannel(file);
-            MP4Demuxer deMuxer = MP4Demuxer.createMP4Demuxer(fileChannelWrapper);
-            DemuxerTrack video_track = deMuxer.getVideoTrack();
-            totalTime = video_track.getMeta().getTotalDuration();
-            logger.debug("Total duration: {}", totalTime);
-        } catch (Exception e) {
-            logger.warn("Fail to get the frame count. (fileName={})", fileName, e);
-        }
+        resultM3U8FilePath = mp4FilePath + File.separator + mp4FileNameOnly + ".m3u8";
+        logger.debug("mp4FileName={}, resultM3U8FilePath={}", mp4FileName, resultM3U8FilePath);
     }
 
-    public String getFileName() {
-        return fileName;
+    /////////////////////////////////////////////////////////////////////
+
+    public String getMp4FileName() {
+        return mp4FileName;
     }
 
     public String getResultM3U8FilePath() {
         return resultM3U8FilePath;
     }
 
-    public double getTotalFrameCount() {
-        return totalTime;
-    }
+    /////////////////////////////////////////////////////////////////////
 
+
+    @Override
+    public String toString() {
+        return "VideoStream{" +
+                "mp4FileName='" + mp4FileName + '\'' +
+                ", resultM3U8FilePath='" + resultM3U8FilePath + '\'' +
+                '}';
+    }
 }
