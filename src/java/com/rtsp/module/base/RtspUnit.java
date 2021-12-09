@@ -1,9 +1,12 @@
 package com.rtsp.module.base;
 
+import com.fsm.StateManager;
+import com.rtsp.fsm.RtspFsmManager;
 import com.rtsp.module.Streamer;
 import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.module.netty.base.NettyChannelType;
 import com.rtsp.module.netty.module.NettyChannel;
+import com.rtsp.service.AppInstance;
 import com.rtsp.service.ResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,21 +27,36 @@ public class RtspUnit {
 
     private final NettyChannel rtspChannel;
     private final NettyChannel rtcpChannel;
-    private static final int rtcpListenPort = 19001; // rtcp listen port
     private int clientPort = 0;
 
     // TODO: Must manage the streamers
     private Streamer streamer = null;
     //
 
+    private final RtspFsmManager rtspFsmManager = new RtspFsmManager();
+    private final String rtspStateUnitId;
+
     ////////////////////////////////////////////////////////////////////////////////
 
     public RtspUnit(String listenIp, int listenPort) {
+        this.rtspStateUnitId = String.valueOf(UUID.randomUUID());
+
+        int rtcpListenPort = AppInstance.getInstance().getConfigManager().getLocalRtcpListenPort();
         rtspChannel = NettyChannelManager.getInstance().openChannel(listenIp, listenPort, NettyChannelType.RTSP);
         rtcpChannel = NettyChannelManager.getInstance().openChannel(listenIp, rtcpListenPort, NettyChannelType.RTCP);
+
+        rtspFsmManager.init(this);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
+
+    public StateManager getStateManager() {
+        return rtspFsmManager.getStateManager();
+    }
+
+    public String getRtspStateUnitId() {
+        return rtspStateUnitId;
+    }
 
     public Streamer getStreamer() {
         return streamer;

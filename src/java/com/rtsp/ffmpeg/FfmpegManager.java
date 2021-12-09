@@ -1,5 +1,7 @@
 package com.rtsp.ffmpeg;
 
+import com.rtsp.config.ConfigManager;
+import com.rtsp.service.AppInstance;
 import io.lindstrom.m3u8.model.MediaPlaylist;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.lindstrom.m3u8.parser.MediaPlaylistParser;
@@ -124,8 +126,9 @@ public class FfmpegManager {
 
         //
         try {
-            FFmpeg ffmpeg = new FFmpeg("/usr/local/bin/ffmpeg");
-            FFprobe ffprobe = new FFprobe("/usr/local/bin/ffprobe");
+            ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+            FFmpeg ffmpeg = new FFmpeg(configManager.getFfmpegPath());
+            FFprobe ffprobe = new FFprobe(configManager.getFfprobePath());
             //FFmpegProbeResult in = ffprobe.probe(srcTotalFilePath);
 
             FFmpegBuilder builder = new FFmpegBuilder()

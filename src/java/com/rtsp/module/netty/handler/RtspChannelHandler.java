@@ -1,16 +1,16 @@
 package com.rtsp.module.netty.handler;
 
-import com.fsm.StateManager;
 import com.fsm.module.StateHandler;
 import com.rtsp.ffmpeg.FfmpegManager;
 import com.rtsp.fsm.RtspEvent;
 import com.rtsp.fsm.RtspState;
-import com.rtsp.module.Streamer;
 import com.rtsp.module.RtspManager;
+import com.rtsp.module.Streamer;
 import com.rtsp.module.VideoStream;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.protocol.RtpPacket;
+import com.rtsp.service.AppInstance;
 import com.rtsp.service.ResourceManager;
 import io.lindstrom.m3u8.model.MediaPlaylist;
 import io.lindstrom.m3u8.model.MediaSegment;
@@ -149,11 +149,71 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                             transportHeaderContent.lastIndexOf(";") + 1
                     );
 
+                    //
+                    String curSessionId = req.headers().get(RtspHeaderNames.SESSION);
+                    if (curSessionId == null) {
+                        curSessionId = String.valueOf(random.nextInt(Integer.MAX_VALUE));
+                    }
+                    logger.debug("({}) ({}) () Current sessionId is [{}]. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), curSessionId, listenIp, listenPort);
+                    //
+
+                    //
+                    Streamer streamer = NettyChannelManager.getInstance().getStreamer(curSessionId, listenIp, listenPort);
+                    if (streamer == null) {
+                        streamer = rtspUnit.getStreamer();
+                        if (streamer == null) {
+                            streamer = NettyChannelManager.getInstance().addStreamer(
+                                    curSessionId,
+                                    listenIp,
+                                    listenPort
+                            );
+
+                            if (streamer == null) {
+                                logger.warn("({}) ({}) ({}) Streamer is not defined. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), curSessionId, listenIp, listenPort);
+                                return;
+                            }
+
+                            rtspUnit.setStreamer(streamer);
+                            StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
+                            rtspStateHandler.fire(
+                                    RtspEvent.SETUP,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                        }
+                    }
+                    //
+
+                    //
+                    streamer.setUri(req.uri());
+                    streamer.setDestIp(listenIp);
+                    //
+
+                    String sessionId = streamer.getSessionId();
                     int rtcpDestPort = 0;
-                    if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.INTERLEAVED))) { // Interleaved 미지원
-                        // Must send the packet by TCP, not UDP
-                        logger.warn("({}) ({}) () < Unknown method: {}", name, rtspUnit.getRtspId(), req.method());
-                        ctx.write(res).addListener(ChannelFutureListener.CLOSE);
+
+                    res.headers().add(
+                            "Session",
+                            sessionId
+                    );
+
+                    if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.INTERLEAVED))) {
+                        logger.debug("({}) ({}) () < Interleaved {}, clientPortString={}", name, rtspUnit.getRtspId(), req.method(), clientPortString);
+
+                        res.headers().add(
+                                "Transport",
+                                "RTP/AVP;unicast;" + clientPortString// + ";ssrc=" + streamer.getSsrc()
+                        );
+
+                        res.setStatus(RtspResponseStatuses.OK);
+                        sendResponse(rtspUnit, streamer, ctx, req, res);
+                        //
+
+                        logger.debug("({}) ({}) ({}) Setup to stream the media. (rtpDestIp={}, rtpDestPort={}, rtcpDestPort={})",
+                                name, rtspUnit.getRtspId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), streamer.getRtcpDestPort()
+                        );
+
+                        //logger.warn("({}) ({}) () < Unknown method: {}, clientPortString={}", name, rtspUnit.getRtspId(), req.method(), clientPortString);
+                        //ctx.write(res).addListener(ChannelFutureListener.CLOSE);
                     } else if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.CLIENT_PORT))) {
                         //
                         String rtpDesPortString = clientPortString.substring(
@@ -184,63 +244,21 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         //
 
                         //
-                        String curSessionId = req.headers().get(RtspHeaderNames.SESSION);
-                        if (curSessionId == null) {
-                            curSessionId = String.valueOf(random.nextInt(Integer.MAX_VALUE));
-                        }
-                        logger.debug("({}) ({}) () Current sessionId is [{}]. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), curSessionId, listenIp, listenPort);
-
-                        Streamer streamer = NettyChannelManager.getInstance().getStreamer(curSessionId, listenIp, listenPort);
-                        if (streamer == null) {
-                            streamer = rtspUnit.getStreamer(); // TODO : 임시 조치 (Session 이 아직 구분이 안됨) > 한 번에 하나의 Streaming 밖에 실행 못함
-                            if (streamer == null) {
-                                streamer = NettyChannelManager.getInstance().addStreamer(
-                                        curSessionId,
-                                        listenIp,
-                                        listenPort
-                                );
-
-                                if (streamer == null) {
-                                    logger.warn("({}) ({}) ({}) Streamer is not defined. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), curSessionId, listenIp, listenPort);
-                                    return;
-                                }
-
-                                rtspUnit.setStreamer(streamer);
-                                StateHandler rtspStateHandler = StateManager.getInstance().getStateHandler(RtspState.NAME);
-                                rtspStateHandler.fire(
-                                        RtspEvent.SETUP,
-                                        StateManager.getInstance().getStateUnit(streamer.getRtspStateUnitId())
-                                );
-                            }
-                        }
-                        //
-
-                        //
-                        streamer.setUri(req.uri());
-                        streamer.setDestIp(listenIp);
                         streamer.setDestPort(rtpDestPort);
                         if (rtcpDestPort > 0) {
                             streamer.setRtcpDestPort(rtcpDestPort);
                         }
                         //
 
-                        String sessionId = streamer.getSessionId();
                         int destPort = streamer.getDestPort();
                         if (destPort > 0 && sessionId != null) {
-                            //
-                            res.headers().add(
-                                    "Session",
-                                    sessionId
-                            );
-
                             res.headers().add(
                                     "Transport",
-                                    "RTP/AVP;unicast;client_port=" + destPort + ";ssrc=" + streamer.getSsrc()
+                                    "RTP/AVP;unicast;client_port=" + destPort// + ";ssrc=" + streamer.getSsrc()
                             );
 
                             res.setStatus(RtspResponseStatuses.OK);
                             sendResponse(rtspUnit, streamer, ctx, req, res);
-                            //
 
                             logger.debug("({}) ({}) ({}) Setup to stream the media. (rtpDestIp={}, rtpDestPort={}, rtcpDestPort={})",
                                     name, rtspUnit.getRtspId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), streamer.getRtcpDestPort()
@@ -272,15 +290,22 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                     int destPort = streamer.getDestPort();
                     if (destPort <= 0) {
-                        logger.warn("({}) ({}) ({}) Fail to process the PLAY request. Destination port is wrong. (rtspUnit={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), rtspUnit);
+                        logger.warn("({}) ({}) ({}) Fail to process the PLAY request. Destination port is wrong. (rtspUnit={}, destPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), rtspUnit, destPort);
                         return;
                     }
 
-                    if (!streamer.isMediaEnabled()) {
-                        StateHandler rtspStateHandler = StateManager.getInstance().getStateHandler(RtspState.NAME);
+                    res.setStatus(RtspResponseStatuses.OK);
+                    res.headers().add(
+                            "Session",
+                            curSessionId
+                    );
+                    sendResponse(rtspUnit, streamer, ctx, req, res);
+
+                    //if (!streamer.isMediaEnabled()) {
+                        StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
                         rtspStateHandler.fire(
                                 RtspEvent.PLAY,
-                                StateManager.getInstance().getStateUnit(streamer.getRtspStateUnitId())
+                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
                         );
 
                         logger.debug("({}) ({}) ({}) Start to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
@@ -311,7 +336,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         );
 
                         //
-                        int curSeqNum = streamer.getCurSeqNum();
+                        /*int curSeqNum = streamer.getCurSeqNum();
                         int curTimeStamp = streamer.getCurTimeStamp();
                         RtpPacket rtpPacket = new RtpPacket();
                         rtpPacket.setValue(
@@ -322,10 +347,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 m3u8ByteData.length
                         );
                         streamer.setCurSeqNum(curSeqNum + 1);
-                        streamer.setCurTimeStamp(curTimeStamp + 100);
+                        streamer.setCurTimeStamp(curTimeStamp + 100);*/
 
-                        byte[] totalRtpData = rtpPacket.getData();
-                        ByteBuf buf = Unpooled.copiedBuffer(totalRtpData);
+                        //byte[] totalRtpData = rtpPacket.getData();
+                        //ByteBuf buf = Unpooled.copiedBuffer(totalRtpData);
+                        ByteBuf buf = Unpooled.copiedBuffer(m3u8ByteData);
                         streamer.send(
                                 buf,
                                 streamer.getDestIp(),
@@ -355,7 +381,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         }
                         streamer.setMediaEnabled(true);
                         //
-                    } else {
+                    //} else {
                         logger.debug("({}) ({}) ({}) Start to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
                         NettyChannelManager.getInstance().startStreaming(
                                 streamer.getSessionId(),
@@ -372,93 +398,93 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         String m3u8PathOnly = streamer.getM3u8PathOnly();
 
                         logger.debug("({}) ({}) ({}) Streaming...", name, rtspUnit.getRtspId(), streamer.getSessionId());
+                        logger.debug("({}) ({}) ({}) mediaSegmentList: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegmentList);
+
                         for (MediaSegment mediaSegment : mediaSegmentList) {
+                            logger.debug("({}) ({}) ({}) Current MediaSegment: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegment);
                             String tsFileName = mediaSegment.uri();
                             tsFileName = m3u8PathOnly + File.separator + tsFileName;
-                            String curTsFileName = RtspUnit.getPureFileName(streamer.getUri());
-                            if (tsFileName.trim().equals(curTsFileName.trim())) {
-                                logger.debug("({}) ({}) ({}) Selected tsFileName: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), tsFileName);
+                            logger.debug("({}) ({}) ({}) Selected tsFileName: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), tsFileName);
 
-                                byte[] tsByteData = Files.readAllBytes(
-                                        Paths.get(
-                                                tsFileName
-                                        )
+                            byte[] tsByteData = Files.readAllBytes(
+                                    Paths.get(
+                                            tsFileName
+                                    )
+                            );
+
+                            int partitionValue = 188;
+                            int marker = 0;
+                            int totalLength = tsByteData.length;
+
+                            if (partitionValue > totalLength) {
+                                partitionValue = totalLength;
+                            }
+
+                            // RTP Packet 제한 바이트 : 1500 > payload Maximum size 는 1,460 (1500 - 20(IP) - 8(UDP) - 12(RTP)) > 1400 으로 제한
+                            for (int i = 0; i < totalLength; i += partitionValue) {
+                                int curDataLength;
+                                if ((i + partitionValue) >= totalLength) {
+                                    curDataLength = totalLength - i;
+                                } else {
+                                    curDataLength = partitionValue;
+                                }
+
+                                byte[] curData = new byte[curDataLength];
+                                System.arraycopy(tsByteData, i, curData, 0, curDataLength);
+
+                                int _curSeqNum = streamer.getCurSeqNum();
+                                int _curTimeStamp = streamer.getCurTimeStamp();
+                                RtpPacket _rtpPacket = new RtpPacket();
+                                _rtpPacket.setValue(
+                                        2, 0, 0, 0, marker, MP2T_TYPE, _curSeqNum,
+                                        _curTimeStamp,
+                                        streamer.getSsrc(),
+                                        curData,
+                                        curData.length
+                                );
+                                streamer.setCurSeqNum(_curSeqNum + 1);
+                                streamer.setCurTimeStamp(_curTimeStamp + 100);
+
+                                byte[] _totalRtpData = _rtpPacket.getData();
+                                ByteBuf _buf = Unpooled.copiedBuffer(_totalRtpData);
+                                streamer.send(
+                                        _buf,
+                                        streamer.getDestIp(),
+                                        streamer.getDestPort()
+                                );
+                                logger.trace("({}) ({}) ({}) >> Send TS (destIp={}, destPort={}, size={})",
+                                        name, rtspUnit.getRtspId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), _totalRtpData.length
                                 );
 
-                                int partitionValue = 1400;
-                                int marker = 0;
-                                int totalLength = tsByteData.length;
-
-                                if (partitionValue > totalLength) {
-                                    partitionValue = totalLength;
+                                if ((i + partitionValue) >= totalLength) {
+                                    marker = 1;
                                 }
+                            }
 
-                                // RTP Packet 제한 바이트 : 1500 > payload Maximum size 는 1,460 (1500 - 20(IP) - 8(UDP) - 12(RTP)) > 1400 으로 제한
-                                for (int i = 0; i < totalLength; i += partitionValue) {
-                                    int curDataLength;
-                                    if ((i + partitionValue) >= totalLength) {
-                                        curDataLength = totalLength - i;
-                                    } else {
-                                        curDataLength = partitionValue;
-                                    }
-
-                                    byte[] curData = new byte[curDataLength];
-                                    System.arraycopy(tsByteData, i, curData, 0, curDataLength);
-
-                                    int curSeqNum = streamer.getCurSeqNum();
-                                    int curTimeStamp = streamer.getCurTimeStamp();
-                                    RtpPacket rtpPacket = new RtpPacket();
-                                    rtpPacket.setValue(
-                                            2, 0, 0, 0, marker, MP2T_TYPE, curSeqNum,
-                                            curTimeStamp,
-                                            streamer.getSsrc(),
-                                            curData,
-                                            curData.length
-                                    );
-                                    streamer.setCurSeqNum(curSeqNum + 1);
-                                    streamer.setCurTimeStamp(curTimeStamp + 100);
-
-                                    byte[] totalRtpData = rtpPacket.getData();
-                                    ByteBuf buf = Unpooled.copiedBuffer(totalRtpData);
-                                    streamer.send(
-                                            buf,
-                                            streamer.getDestIp(),
-                                            streamer.getDestPort()
-                                    );
-                                    logger.trace("({}) ({}) ({}) >> Send TS (destIp={}, destPort={}, size={})",
-                                            name, rtspUnit.getRtspId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), totalRtpData.length
-                                    );
-
-                                    if ((i + partitionValue) >= totalLength) {
-                                        marker = 1;
-                                    }
-                                }
-
-                                break;
+                            if (AppInstance.getInstance().getConfigManager().isDeleteTs()) {
+                                streamer.setCurMediaSegmentCount(
+                                        streamer.getCurMediaSegmentCount() + 1
+                                );
                             }
                         }
-
-                        streamer.setCurMediaSegmentCount(
-                                streamer.getCurMediaSegmentCount() + 1
-                        );
-                    }
+                    //}
                     //
 
-                    if (NettyChannelManager.getInstance().getStreamer(streamer.getSessionId(), listenIp, listenPort) != null) {
+                    /*res.setStatus(RtspResponseStatuses.OK);
+                    res.headers().add(
+                            "Session",
+                            curSessionId
+                    );
+                    sendResponse(rtspUnit, streamer, ctx, req, res);*/
+
+                    /*if (NettyChannelManager.getInstance().getStreamer(streamer.getSessionId(), listenIp, listenPort) != null) {
                         NettyChannelManager.getInstance().stopStreaming(
                                 streamer.getSessionId(),
                                 listenIp,
                                 listenPort
                         );
                         logger.debug("({}) ({}) ({}) Stop to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
-                    }
-
-                    res.setStatus(RtspResponseStatuses.OK);
-                    res.headers().add(
-                            "Session",
-                            curSessionId
-                    );
-                    sendResponse(rtspUnit, streamer, ctx, req, res);
+                    }*/
                 }
                 // 5) TEARDOWN
                 else if (req.method() == RtspMethods.TEARDOWN) {
@@ -478,14 +504,14 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         return;
                     }
 
-                    StateHandler rtspStateHandler = StateManager.getInstance().getStateHandler(RtspState.NAME);
+                    StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
                     rtspStateHandler.fire(
                             RtspEvent.TEARDOWN,
-                            StateManager.getInstance().getStateUnit(streamer.getRtspStateUnitId())
+                            rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
                     );
 
                     // 마지막 TEARDOWN 수신 시 해당 세션의 모든 미디어 스트리밍 자원 삭제
-                    if (streamer.getCurMediaSegmentCount() == streamer.getMediaSegmentList().size()) {
+                    if (streamer.getCurMediaSegmentCount() >= streamer.getMediaSegmentList().size()) {
                         NettyChannelManager.getInstance().deleteStreamer(
                                 streamer.getSessionId(),
                                 listenIp,
@@ -494,7 +520,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         rtspUnit.setStreamer(null); // TODO : 임시 조치
                         logger.debug("({}) ({}) ({}) Finish to stream the media. All media segment is played.", name, rtspUnit.getRtspId(), streamer.getSessionId());
                     } else {
-                        logger.debug("({}) ({}) ({}) Stop the streaming.)", name, rtspUnit.getRtspId(), streamer.getSessionId());
+                        logger.debug("({}) ({}) ({}) Stop the streaming.", name, rtspUnit.getRtspId(), streamer.getSessionId());
                         NettyChannelManager.getInstance().stopStreaming(
                                 streamer.getSessionId(),
                                 listenIp,

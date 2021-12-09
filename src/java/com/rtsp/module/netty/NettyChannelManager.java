@@ -2,7 +2,6 @@ package com.rtsp.module.netty;
 
 import com.rtsp.module.Streamer;
 import com.rtsp.module.netty.module.NettyChannel;
-import com.rtsp.service.ResourceManager;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

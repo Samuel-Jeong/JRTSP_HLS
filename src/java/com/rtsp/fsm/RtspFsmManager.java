@@ -10,9 +10,7 @@ import com.rtsp.module.base.RtspUnit;
  */
 public class RtspFsmManager {
 
-    private static RtspFsmManager rtspFsmManager = null;
-
-    private final StateManager stateManager = StateManager.getInstance();
+    private final StateManager stateManager = new StateManager(10);
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,15 +18,11 @@ public class RtspFsmManager {
         // Nothing
     }
 
-    public static RtspFsmManager getInstance ( ) {
-        if (rtspFsmManager == null) {
-            rtspFsmManager = new RtspFsmManager();
-        }
-
-        return rtspFsmManager;
-    }
-
     ////////////////////////////////////////////////////////////////////////////////
+
+    public StateManager getStateManager() {
+        return stateManager;
+    }
 
     public void init(RtspUnit rtspUnit) {
         if (rtspUnit == null) {
@@ -36,7 +30,6 @@ public class RtspFsmManager {
         }
 
         //
-        stateManager.start(1000);
         stateManager.addStateHandler(RtspState.NAME);
         StateHandler rtspStateHandler = stateManager.getStateHandler(RtspState.NAME);
         //

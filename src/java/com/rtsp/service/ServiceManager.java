@@ -1,5 +1,6 @@
 package com.rtsp.service;
 
+import com.rtsp.config.ConfigManager;
 import com.rtsp.module.RtspManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +39,11 @@ public class ServiceManager {
     private void start () {
         ResourceManager.getInstance().initResource();
 
-        RtspManager.getInstance().openRtspUnit("127.0.0.1", 8554);
+        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        RtspManager.getInstance().openRtspUnit(
+                configManager.getLocalListenIp(),
+                configManager.getLocalRtspListenPort()
+        );
 
         logger.debug("| All services are opened.");
     }

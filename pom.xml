@@ -119,7 +119,7 @@
         <dependency>
             <groupId>umediafsm</groupId>
             <artifactId>umediafsm</artifactId>
-            <version>1.0.0</version>
+            <version>1.0.2</version>
         </dependency>
 
     </dependencies>
@@ -127,7 +127,7 @@
     <repositories>
         <!-- local -->
         <repository>
-            <id>mediaRepo</id>
+            <id>maven-public</id>
             <name>media Repository</name>
             <url>http://192.168.7.33:8082/repository/maven-public/</url>
             <releases>

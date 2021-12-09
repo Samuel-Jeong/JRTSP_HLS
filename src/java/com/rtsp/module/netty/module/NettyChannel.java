@@ -1,7 +1,5 @@
 package com.rtsp.module.netty.module;
 
-import com.fsm.StateManager;
-import com.rtsp.fsm.RtspState;
 import com.rtsp.module.Streamer;
 import com.rtsp.module.netty.base.NettyChannelType;
 import com.rtsp.module.netty.handler.RtcpChannelHandler;
@@ -190,13 +188,6 @@ public class NettyChannel {
                 logger.warn("Fail to create Streamer. (key={})", key);
                 return null;
             }
-
-            StateManager.getInstance().addStateUnit(
-                    streamer.getRtspStateUnitId(),
-                    StateManager.getInstance().getStateHandler(RtspState.NAME).getName(),
-                    RtspState.INIT,
-                    streamer
-            );
 
             messageSenderMap.putIfAbsent(
                     key,

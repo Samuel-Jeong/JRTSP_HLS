@@ -20,6 +20,44 @@ public class ConfigManager {
 
     // Section String
     public static final String SECTION_COMMON = "COMMON"; // COMMON Section 이름
+    public static final String SECTION_FFMPEG = "FFMPEG"; // FFMPEG Section 이름
+    public static final String SECTION_NETWORK = "NETWORK"; // NETWORK Section 이름
+    public static final String SECTION_HLS = "HLS"; // HLS Section 이름
+
+    // Field String
+    public static final String FIELD_SEND_BUF_SIZE = "SEND_BUF_SIZE";
+    public static final String FIELD_RECV_BUF_SIZE = "RECV_BUF_SIZE";
+
+    public static final String FIELD_FFMPEG_PATH = "FFMPEG_PATH";
+    public static final String FIELD_FFPROBE_PATH = "FFPROBE_PATH";
+
+    public static final String FIELD_STREAM_THREAD_POOL_SIZE = "STREAM_THREAD_POOL_SIZE";
+    public static final String FIELD_LOCAL_LISTEN_IP = "LOCAL_LISTEN_IP";
+    public static final String FIELD_LOCAL_RTSP_LISTEN_PORT = "LOCAL_RTSP_LISTEN_PORT";
+    public static final String FIELD_LOCAL_RTCP_LISTEN_PORT = "LOCAL_RTCP_LISTEN_PORT";
+
+    public static final String FIELD_HLS_LIST_SIZE = "HLS_LIST_SIZE";
+    public static final String FIELD_HLS_TIME = "HLS_TIME";
+    public static final String FIELD_DELETE_TS = "DELETE_TS";
+
+    // COMMON
+    private int sendBufSize = 0;
+    private int recvBufSize = 0;
+
+    // FFMPEG
+    private String ffmpegPath = null;
+    private String ffprobePath = null;
+
+    // NETWORK
+    private int streamThreadPoolSize = 1;
+    private String localListenIp = null;
+    private int localRtspListenPort = 0;
+    private int localRtcpListenPort = 0;
+
+    // HLS
+    private int hlsListSize = 0;
+    private int hlsTime = 0;
+    private boolean deleteTs = true;
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +77,9 @@ public class ConfigManager {
             this.ini = new Ini(iniFile);
 
             loadCommonConfig();
+            loadFfmpegConfig();
+            loadNetworkConfig();
+            loadHlsConfig();
 
             logger.info("Load config [{}]", configPath);
         } catch (IOException e) {
@@ -53,8 +94,83 @@ public class ConfigManager {
      * @brief COMMON Section 을 로드하는 함수
      */
     private void loadCommonConfig() {
+        this.sendBufSize = Integer.parseInt(getIniValue(SECTION_COMMON, FIELD_SEND_BUF_SIZE));
+        if (this.sendBufSize <= 0) {
+            return;
+        }
+
+        this.recvBufSize = Integer.parseInt(getIniValue(SECTION_COMMON, FIELD_RECV_BUF_SIZE));
+        if (this.recvBufSize <= 0) {
+            return;
+        }
 
         logger.debug("Load [{}] config...(OK)", SECTION_COMMON);
+    }
+
+    /**
+     * @fn private void loadFfmpegConfig()
+     * @brief FFMPEG Section 을 로드하는 함수
+     */
+    private void loadFfmpegConfig() {
+        this.ffmpegPath = getIniValue(SECTION_FFMPEG, FIELD_FFMPEG_PATH);
+        if (this.ffmpegPath == null) {
+            return;
+        }
+
+        this.ffprobePath = getIniValue(SECTION_FFMPEG, FIELD_FFPROBE_PATH);
+        if (this.ffprobePath == null) {
+            return;
+        }
+
+        logger.debug("Load [{}] config...(OK)", SECTION_FFMPEG);
+    }
+
+    /**
+     * @fn private void loadNetworkConfig()
+     * @brief NETWORK Section 을 로드하는 함수
+     */
+    private void loadNetworkConfig() {
+        this.streamThreadPoolSize = Integer.parseInt(getIniValue(SECTION_NETWORK, FIELD_STREAM_THREAD_POOL_SIZE));
+        if (this.streamThreadPoolSize <= 0) {
+            return;
+        }
+
+        this.localListenIp = getIniValue(SECTION_NETWORK, FIELD_LOCAL_LISTEN_IP);
+        if (this.localListenIp == null) {
+            return;
+        }
+
+        this.localRtspListenPort = Integer.parseInt(getIniValue(SECTION_NETWORK, FIELD_LOCAL_RTSP_LISTEN_PORT));
+        if (this.localRtspListenPort <= 0) {
+            return;
+        }
+
+        this.localRtcpListenPort = Integer.parseInt(getIniValue(SECTION_NETWORK, FIELD_LOCAL_RTCP_LISTEN_PORT));
+        if (this.localRtcpListenPort <= 0) {
+            return;
+        }
+
+        logger.debug("Load [{}] config...(OK)", SECTION_NETWORK);
+    }
+
+    /**
+     * @fn private void loadHlsConfig()
+     * @brief HLS Section 을 로드하는 함수
+     */
+    private void loadHlsConfig() {
+        this.hlsListSize = Integer.parseInt(getIniValue(SECTION_HLS, FIELD_HLS_LIST_SIZE));
+        if (this.hlsListSize <= 0) {
+            return;
+        }
+
+        this.hlsTime = Integer.parseInt(getIniValue(SECTION_HLS, FIELD_HLS_TIME));
+        if (this.hlsTime <= 0) {
+            return;
+        }
+
+        this.deleteTs = Boolean.parseBoolean(getIniValue(SECTION_HLS, FIELD_DELETE_TS));
+
+        logger.debug("Load [{}] config...(OK)", SECTION_HLS);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -100,4 +216,47 @@ public class ConfigManager {
 
     ////////////////////////////////////////////////////////////////////////////////
 
+    public int getSendBufSize() {
+        return sendBufSize;
+    }
+
+    public int getRecvBufSize() {
+        return recvBufSize;
+    }
+
+    public String getFfmpegPath() {
+        return ffmpegPath;
+    }
+
+    public String getFfprobePath() {
+        return ffprobePath;
+    }
+
+    public int getStreamThreadPoolSize() {
+        return streamThreadPoolSize;
+    }
+
+    public String getLocalListenIp() {
+        return localListenIp;
+    }
+
+    public int getLocalRtspListenPort() {
+        return localRtspListenPort;
+    }
+
+    public int getLocalRtcpListenPort() {
+        return localRtcpListenPort;
+    }
+
+    public int getHlsListSize() {
+        return hlsListSize;
+    }
+
+    public int getHlsTime() {
+        return hlsTime;
+    }
+
+    public boolean isDeleteTs() {
+        return deleteTs;
+    }
 }

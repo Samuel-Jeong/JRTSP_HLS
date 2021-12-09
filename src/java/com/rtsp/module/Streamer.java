@@ -1,7 +1,8 @@
 package com.rtsp.module;
 
+import com.rtsp.config.ConfigManager;
 import com.rtsp.module.netty.handler.StreamerChannelHandler;
-import com.rtsp.service.ResourceManager;
+import com.rtsp.service.AppInstance;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -18,7 +19,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Random;
-import java.util.UUID;
 
 /**
  * @class public class Streamer
@@ -30,7 +30,6 @@ public class Streamer {
 
     /* Streamer id */
     private final String sessionId;
-    private final String rtspStateUnitId;
 
     /* 메시지 송신용 채널 */
     private Channel channel;
@@ -72,8 +71,6 @@ public class Streamer {
         curSeqNum = random.nextInt(65536);
         curTimeStamp = random.nextInt(65536);
 
-        this.rtspStateUnitId = String.valueOf(UUID.randomUUID());
-
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }
 
@@ -84,11 +81,12 @@ public class Streamer {
             return null;
         }
 
-        group = new NioEventLoopGroup(100);
+        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        group = new NioEventLoopGroup(configManager.getStreamThreadPoolSize());
         b.group(group).channel(NioDatagramChannel.class)
                 .option(ChannelOption.SO_BROADCAST, false)
-                .option(ChannelOption.SO_SNDBUF, 33554432)
-                .option(ChannelOption.SO_RCVBUF, 16777216)
+                .option(ChannelOption.SO_SNDBUF, configManager.getSendBufSize())
+                .option(ChannelOption.SO_RCVBUF, configManager.getRecvBufSize())
                 .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_REUSEADDR, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
@@ -231,10 +229,6 @@ public class Streamer {
             this.uri = uri;
             logger.debug("({}) Streamer the next uri is set up. ({})", sessionId, uri);
         }
-    }
-
-    public String getRtspStateUnitId() {
-        return rtspStateUnitId;
     }
 
     public List<MediaSegment> getMediaSegmentList() {

@@ -1,6 +1,6 @@
 package com.rtsp.module;
 
-import com.rtsp.fsm.RtspFsmManager;
+import com.rtsp.fsm.RtspState;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.service.ResourceManager;
@@ -32,7 +32,12 @@ public class RtspManager {
     public void openRtspUnit(String ip, int port) {
         if (rtspUnit == null) {
             rtspUnit = new RtspUnit(ip, port);
-            RtspFsmManager.getInstance().init(rtspUnit);
+            rtspUnit.getStateManager().addStateUnit(
+                    rtspUnit.getRtspStateUnitId(),
+                    rtspUnit.getStateManager().getStateHandler(RtspState.NAME).getName(),
+                    RtspState.INIT,
+                    null
+            );
         }
     }
 
