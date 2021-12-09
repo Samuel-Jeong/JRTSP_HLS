@@ -15,8 +15,8 @@ import org.mp4parser.muxer.builder.DefaultMp4Builder;
 import org.mp4parser.muxer.tracks.h264.H264TrackImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.config.ConfigManager;
-import rtsp.service.AppInstance;
+import com.rtsp.config.ConfigManager;
+import com.rtsp.service.AppInstance;
 
 import java.io.File;
 import java.io.FileOutputStream;

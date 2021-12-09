@@ -10,9 +10,9 @@ import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.config.ConfigManager;
-import rtsp.module.netty.handler.StreamerChannelHandler;
-import rtsp.service.AppInstance;
+import com.rtsp.config.ConfigManager;
+import com.rtsp.module.netty.handler.StreamerChannelHandler;
+import com.rtsp.service.AppInstance;
 
 import java.io.File;
 import java.net.InetAddress;

@@ -3,8 +3,8 @@ package com.rtsp.module.netty;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.module.Streamer;
-import rtsp.module.netty.module.NettyChannel;
+import com.rtsp.module.Streamer;
+import com.rtsp.module.netty.module.NettyChannel;
 
 import java.util.HashMap;
 import java.util.Map;

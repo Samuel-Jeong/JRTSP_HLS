@@ -3,7 +3,7 @@ package com.rtsp.config;
 import org.ini4j.Ini;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.service.ServiceManager;
+import com.rtsp.service.ServiceManager;
 
 import java.io.File;
 import java.io.IOException;

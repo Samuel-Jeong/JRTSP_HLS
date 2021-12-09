@@ -10,10 +10,10 @@ import io.netty.handler.codec.rtsp.RtspDecoder;
 import io.netty.handler.codec.rtsp.RtspEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.module.Streamer;
-import rtsp.module.netty.base.NettyChannelType;
-import rtsp.module.netty.handler.RtcpChannelHandler;
-import rtsp.module.netty.handler.RtspChannelHandler;
+import com.rtsp.module.Streamer;
+import com.rtsp.module.netty.base.NettyChannelType;
+import com.rtsp.module.netty.handler.RtcpChannelHandler;
+import com.rtsp.module.netty.handler.RtspChannelHandler;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
