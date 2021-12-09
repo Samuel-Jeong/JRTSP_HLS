@@ -1,9 +1,9 @@
 package com.rtsp.config;
 
-import com.rtsp.service.ServiceManager;
 import org.ini4j.Ini;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rtsp.service.ServiceManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +35,7 @@ public class ConfigManager {
     public static final String FIELD_LOCAL_LISTEN_IP = "LOCAL_LISTEN_IP";
     public static final String FIELD_LOCAL_RTSP_LISTEN_PORT = "LOCAL_RTSP_LISTEN_PORT";
     public static final String FIELD_LOCAL_RTCP_LISTEN_PORT = "LOCAL_RTCP_LISTEN_PORT";
+    public static final String FIELD_TARGET_IP = "TARGET_IP";
 
     public static final String FIELD_HLS_LIST_SIZE = "HLS_LIST_SIZE";
     public static final String FIELD_HLS_TIME = "HLS_TIME";
@@ -53,6 +54,7 @@ public class ConfigManager {
     private String localListenIp = null;
     private int localRtspListenPort = 0;
     private int localRtcpListenPort = 0;
+    private String targetIp = null;
 
     // HLS
     private int hlsListSize = 0;
@@ -147,6 +149,11 @@ public class ConfigManager {
 
         this.localRtcpListenPort = Integer.parseInt(getIniValue(SECTION_NETWORK, FIELD_LOCAL_RTCP_LISTEN_PORT));
         if (this.localRtcpListenPort <= 0) {
+            return;
+        }
+
+        this.targetIp = getIniValue(SECTION_NETWORK, FIELD_TARGET_IP);
+        if (this.targetIp == null) {
             return;
         }
 
@@ -258,5 +265,9 @@ public class ConfigManager {
 
     public boolean isDeleteTs() {
         return deleteTs;
+    }
+
+    public String getTargetIp() {
+        return targetIp;
     }
 }

@@ -1,7 +1,6 @@
 package com.rtsp.service;
 
-
-import com.rtsp.config.ConfigManager;
+import rtsp.config.ConfigManager;
 
 public class AppInstance {
 

@@ -1,7 +1,3 @@
-/*
- * Copyright (C) 2021. Uangel Corp. All rights reserved.
- */
-
 package com.rtsp.service;
 
 import org.slf4j.Logger;

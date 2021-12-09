@@ -1,8 +1,5 @@
 package com.rtsp.module;
 
-import com.rtsp.config.ConfigManager;
-import com.rtsp.module.netty.handler.StreamerChannelHandler;
-import com.rtsp.service.AppInstance;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -13,6 +10,9 @@ import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rtsp.config.ConfigManager;
+import rtsp.module.netty.handler.StreamerChannelHandler;
+import rtsp.service.AppInstance;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -68,8 +68,8 @@ public class Streamer {
         this.listenPort = listenPort;
 
         ssrc = random.nextInt(Integer.MAX_VALUE);
-        curSeqNum = random.nextInt(65536);
-        curTimeStamp = random.nextInt(65536);
+        curSeqNum = random.nextInt(5000);
+        curTimeStamp = random.nextInt(5000);
 
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }

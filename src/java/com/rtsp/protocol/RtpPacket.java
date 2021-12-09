@@ -1,7 +1,7 @@
 package com.rtsp.protocol;
 
-import com.rtsp.protocol.base.ByteUtil;
-import com.rtsp.protocol.base.RtpException;
+import rtsp.protocol.base.ByteUtil;
+import rtsp.protocol.base.RtpException;
 
 import java.io.Serializable;
 

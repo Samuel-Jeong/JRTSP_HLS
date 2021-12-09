@@ -1,9 +1,9 @@
 package com.rtsp.module;
 
-import com.rtsp.fsm.RtspState;
-import com.rtsp.module.base.RtspUnit;
-import com.rtsp.module.netty.NettyChannelManager;
-import com.rtsp.service.ResourceManager;
+import rtsp.fsm.RtspState;
+import rtsp.module.base.RtspUnit;
+import rtsp.module.netty.NettyChannelManager;
+import rtsp.service.ResourceManager;
 
 /**
  * @class public class RtspManager

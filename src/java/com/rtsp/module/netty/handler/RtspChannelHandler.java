@@ -1,17 +1,6 @@
 package com.rtsp.module.netty.handler;
 
 import com.fsm.module.StateHandler;
-import com.rtsp.ffmpeg.FfmpegManager;
-import com.rtsp.fsm.RtspEvent;
-import com.rtsp.fsm.RtspState;
-import com.rtsp.module.RtspManager;
-import com.rtsp.module.Streamer;
-import com.rtsp.module.VideoStream;
-import com.rtsp.module.base.RtspUnit;
-import com.rtsp.module.netty.NettyChannelManager;
-import com.rtsp.protocol.RtpPacket;
-import com.rtsp.service.AppInstance;
-import com.rtsp.service.ResourceManager;
 import io.lindstrom.m3u8.model.MediaPlaylist;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.lindstrom.m3u8.parser.MediaPlaylistParser;
@@ -27,6 +16,17 @@ import io.netty.handler.codec.rtsp.*;
 import io.netty.util.CharsetUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rtsp.ffmpeg.FfmpegManager;
+import rtsp.fsm.RtspEvent;
+import rtsp.fsm.RtspState;
+import rtsp.module.RtspManager;
+import rtsp.module.Streamer;
+import rtsp.module.VideoStream;
+import rtsp.module.base.RtspUnit;
+import rtsp.module.netty.NettyChannelManager;
+import rtsp.protocol.RtpPacket;
+import rtsp.service.AppInstance;
+import rtsp.service.ResourceManager;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -185,7 +185,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                     //
                     streamer.setUri(req.uri());
-                    streamer.setDestIp(listenIp);
+                    streamer.setDestIp(AppInstance.getInstance().getConfigManager().getTargetIp());
                     //
 
                     String sessionId = streamer.getSessionId();
@@ -294,14 +294,73 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         return;
                     }
 
-                    res.setStatus(RtspResponseStatuses.OK);
-                    res.headers().add(
-                            "Session",
-                            curSessionId
-                    );
-                    sendResponse(rtspUnit, streamer, ctx, req, res);
+                    if (!streamer.isActive()) {
+                        logger.warn("({}) ({}) ({}) Streamer is not active or deleted. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), listenIp, listenPort);
+                        return;
+                    }
 
-                    //if (!streamer.isMediaEnabled()) {
+                    logger.debug("({}) ({}) ({}) Start to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
+                    NettyChannelManager.getInstance().startStreaming(
+                            streamer.getSessionId(),
+                            listenIp,
+                            listenPort
+                    );
+
+                    // TODO : M3U8 파일 생성 및 업데이트 (ts time value 에 맞게)
+                    VideoStream video = streamer.getVideo();
+                    logger.debug("({}) ({}) ({}) resultM3U8FilePath: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), video.getResultM3U8FilePath());
+
+                    FfmpegManager ffmpegManager = new FfmpegManager();
+                    ffmpegManager.convertMp4ToM3u8(
+                            video.getMp4FileName(),
+                            video.getResultM3U8FilePath()
+                    );
+                    //
+
+                    //
+                    // TODO : Thread 개별적으로 돌려야함
+                    // TODO : m3u8 보내고 + TS List size 만큼 TS 보내야함!!
+                    byte[] m3u8ByteData = Files.readAllBytes(
+                            Paths.get(
+                                    video.getResultM3U8FilePath()
+                            )
+                    );
+
+                    ByteBuf buf = Unpooled.copiedBuffer(m3u8ByteData);
+                    streamer.send(
+                            buf,
+                            streamer.getDestIp(),
+                            streamer.getDestPort()
+                    );
+                    logger.debug("({}) ({}) ({}) >> Send M3U8 (destIp={}, destPort={})\n{}(size={})",
+                            name, rtspUnit.getRtspId(),
+                            streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(),
+                            new String(m3u8ByteData, StandardCharsets.UTF_8), m3u8ByteData.length
+                    );
+                    //
+
+                    //
+                    List<MediaSegment> mediaSegmentList;
+                    MediaPlaylistParser parser = new MediaPlaylistParser();
+                    MediaPlaylist playlist = parser.readPlaylist(Paths.get(video.getResultM3U8FilePath()));
+                    if (playlist != null) {
+                        String m3u8PathOnly = video.getResultM3U8FilePath();
+                        m3u8PathOnly = m3u8PathOnly.substring(
+                                0,
+                                m3u8PathOnly.lastIndexOf("/")
+                        );
+                        streamer.setM3u8PathOnly(m3u8PathOnly);
+
+                        mediaSegmentList = playlist.mediaSegments();
+                        logger.debug("({}) ({}) ({}) mediaSegmentList: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegmentList);
+                        streamer.setMediaSegmentList(mediaSegmentList);
+
+                        res.setStatus(RtspResponseStatuses.OK);
+                        res.headers().add(
+                                "Session",
+                                curSessionId
+                        );
+
                         StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
                         rtspStateHandler.fire(
                                 RtspEvent.PLAY,
@@ -314,177 +373,95 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 listenIp,
                                 listenPort
                         );
-
-                        if (!streamer.isActive()) {
-                            logger.warn("({}) ({}) ({}) Streamer is not active or deleted. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), listenIp, listenPort);
-                            return;
-                        }
-
-                        VideoStream video = streamer.getVideo();
-                        logger.debug("({}) ({}) ({}) resultM3U8FilePath: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), video.getResultM3U8FilePath());
-
-                        FfmpegManager ffmpegManager = new FfmpegManager();
-                        ffmpegManager.convertMp4ToM3u8(
-                                video.getMp4FileName(),
-                                video.getResultM3U8FilePath()
+                    } else {
+                        res.setStatus(RtspResponseStatuses.INTERNAL_SERVER_ERROR);
+                        res.headers().add(
+                                "Session",
+                                curSessionId
                         );
+                        logger.warn("({}) ({}) ({}) Fail to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
+                        return;
+                    }
 
-                        byte[] m3u8ByteData = Files.readAllBytes(
+                    sendResponse(rtspUnit, streamer, ctx, req, res);
+                    streamer.setMediaEnabled(true);
+
+                    if (!streamer.isActive()) {
+                        logger.warn("({}) ({}) ({}) Streamer is not active or deleted. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), listenIp, listenPort);
+                        return;
+                    }
+
+                    mediaSegmentList = streamer.getMediaSegmentList();
+                    String m3u8PathOnly = streamer.getM3u8PathOnly();
+
+                    //
+                    for (MediaSegment mediaSegment : mediaSegmentList) {
+                        logger.debug("({}) ({}) ({}) Current MediaSegment: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegment);
+                        String tsFileName = mediaSegment.uri();
+                        tsFileName = m3u8PathOnly + File.separator + tsFileName;
+                        logger.debug("({}) ({}) ({}) Selected tsFileName: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), tsFileName);
+
+                        byte[] tsByteData = Files.readAllBytes(
                                 Paths.get(
-                                        video.getResultM3U8FilePath()
+                                        tsFileName
                                 )
                         );
 
-                        //
-                        /*int curSeqNum = streamer.getCurSeqNum();
-                        int curTimeStamp = streamer.getCurTimeStamp();
-                        RtpPacket rtpPacket = new RtpPacket();
-                        rtpPacket.setValue(
-                                2, 0, 0, 0, 0, MP2T_TYPE, curSeqNum,
-                                curTimeStamp,
-                                streamer.getSsrc(),
-                                m3u8ByteData,
-                                m3u8ByteData.length
-                        );
-                        streamer.setCurSeqNum(curSeqNum + 1);
-                        streamer.setCurTimeStamp(curTimeStamp + 100);*/
+                        int partitionValue = 188; // TS Packet Total byte : 188 (4(header) + 184)
+                        int marker = 0;
+                        int totalLength = tsByteData.length;
 
-                        //byte[] totalRtpData = rtpPacket.getData();
-                        //ByteBuf buf = Unpooled.copiedBuffer(totalRtpData);
-                        ByteBuf buf = Unpooled.copiedBuffer(m3u8ByteData);
-                        streamer.send(
-                                buf,
-                                streamer.getDestIp(),
-                                streamer.getDestPort()
-                        );
-                        logger.debug("({}) ({}) ({}) >> Send M3U8 (destIp={}, destPort={})\n{}(size={})",
-                                name, rtspUnit.getRtspId(),
-                                streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(),
-                                new String(m3u8ByteData, StandardCharsets.UTF_8), m3u8ByteData.length
-                        );
-                        //
+                        if (partitionValue > totalLength) {
+                            partitionValue = totalLength;
+                        }
 
-                        //
-                        MediaPlaylistParser parser = new MediaPlaylistParser();
-                        MediaPlaylist playlist = parser.readPlaylist(Paths.get(video.getResultM3U8FilePath()));
-                        if (playlist != null) {
-                            String m3u8PathOnly = video.getResultM3U8FilePath();
-                            m3u8PathOnly = m3u8PathOnly.substring(
-                                    0,
-                                    m3u8PathOnly.lastIndexOf("/")
+                        for (int i = 0; i < totalLength; i += partitionValue) {
+                            int curDataLength;
+                            if ((i + partitionValue) >= totalLength) {
+                                curDataLength = totalLength - i;
+                            } else {
+                                curDataLength = partitionValue;
+                            }
+
+                            byte[] curData = new byte[curDataLength];
+                            System.arraycopy(tsByteData, i, curData, 0, curDataLength);
+
+                            int _curSeqNum = streamer.getCurSeqNum();
+                            int _curTimeStamp = streamer.getCurTimeStamp();
+                            RtpPacket _rtpPacket = new RtpPacket();
+                            _rtpPacket.setValue(
+                                    2, 0, 0, 0, marker, MP2T_TYPE, _curSeqNum,
+                                    _curTimeStamp,
+                                    streamer.getSsrc(),
+                                    curData,
+                                    curData.length
                             );
-                            streamer.setM3u8PathOnly(m3u8PathOnly);
+                            streamer.setCurSeqNum(_curSeqNum + 1);
+                            streamer.setCurTimeStamp(_curTimeStamp + 100);
 
-                            List<MediaSegment> mediaSegmentList = playlist.mediaSegments();
-                            logger.debug("({}) ({}) ({}) mediaSegmentList: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegmentList);
-                            streamer.setMediaSegmentList(mediaSegmentList);
-                        }
-                        streamer.setMediaEnabled(true);
-                        //
-                    //} else {
-                        logger.debug("({}) ({}) ({}) Start to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
-                        NettyChannelManager.getInstance().startStreaming(
-                                streamer.getSessionId(),
-                                listenIp,
-                                listenPort
-                        );
-
-                        if (!streamer.isActive()) {
-                            logger.warn("({}) ({}) ({}) Streamer is not active or deleted. (listenIp={}, listenPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), listenIp, listenPort);
-                            return;
-                        }
-
-                        List<MediaSegment> mediaSegmentList = streamer.getMediaSegmentList();
-                        String m3u8PathOnly = streamer.getM3u8PathOnly();
-
-                        logger.debug("({}) ({}) ({}) Streaming...", name, rtspUnit.getRtspId(), streamer.getSessionId());
-                        logger.debug("({}) ({}) ({}) mediaSegmentList: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegmentList);
-
-                        for (MediaSegment mediaSegment : mediaSegmentList) {
-                            logger.debug("({}) ({}) ({}) Current MediaSegment: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), mediaSegment);
-                            String tsFileName = mediaSegment.uri();
-                            tsFileName = m3u8PathOnly + File.separator + tsFileName;
-                            logger.debug("({}) ({}) ({}) Selected tsFileName: {}", name, rtspUnit.getRtspId(), streamer.getSessionId(), tsFileName);
-
-                            byte[] tsByteData = Files.readAllBytes(
-                                    Paths.get(
-                                            tsFileName
-                                    )
+                            byte[] _totalRtpData = _rtpPacket.getData();
+                            ByteBuf _buf = Unpooled.copiedBuffer(_totalRtpData);
+                            streamer.send(
+                                    _buf,
+                                    streamer.getDestIp(),
+                                    streamer.getDestPort()
+                            );
+                            logger.trace("({}) ({}) ({}) >> Send TS (destIp={}, destPort={}, size={})",
+                                    name, rtspUnit.getRtspId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), _totalRtpData.length
                             );
 
-                            int partitionValue = 188;
-                            int marker = 0;
-                            int totalLength = tsByteData.length;
-
-                            if (partitionValue > totalLength) {
-                                partitionValue = totalLength;
-                            }
-
-                            // RTP Packet 제한 바이트 : 1500 > payload Maximum size 는 1,460 (1500 - 20(IP) - 8(UDP) - 12(RTP)) > 1400 으로 제한
-                            for (int i = 0; i < totalLength; i += partitionValue) {
-                                int curDataLength;
-                                if ((i + partitionValue) >= totalLength) {
-                                    curDataLength = totalLength - i;
-                                } else {
-                                    curDataLength = partitionValue;
-                                }
-
-                                byte[] curData = new byte[curDataLength];
-                                System.arraycopy(tsByteData, i, curData, 0, curDataLength);
-
-                                int _curSeqNum = streamer.getCurSeqNum();
-                                int _curTimeStamp = streamer.getCurTimeStamp();
-                                RtpPacket _rtpPacket = new RtpPacket();
-                                _rtpPacket.setValue(
-                                        2, 0, 0, 0, marker, MP2T_TYPE, _curSeqNum,
-                                        _curTimeStamp,
-                                        streamer.getSsrc(),
-                                        curData,
-                                        curData.length
-                                );
-                                streamer.setCurSeqNum(_curSeqNum + 1);
-                                streamer.setCurTimeStamp(_curTimeStamp + 100);
-
-                                byte[] _totalRtpData = _rtpPacket.getData();
-                                ByteBuf _buf = Unpooled.copiedBuffer(_totalRtpData);
-                                streamer.send(
-                                        _buf,
-                                        streamer.getDestIp(),
-                                        streamer.getDestPort()
-                                );
-                                logger.trace("({}) ({}) ({}) >> Send TS (destIp={}, destPort={}, size={})",
-                                        name, rtspUnit.getRtspId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), _totalRtpData.length
-                                );
-
-                                if ((i + partitionValue) >= totalLength) {
-                                    marker = 1;
-                                }
-                            }
-
-                            if (AppInstance.getInstance().getConfigManager().isDeleteTs()) {
-                                streamer.setCurMediaSegmentCount(
-                                        streamer.getCurMediaSegmentCount() + 1
-                                );
+                            if ((i + partitionValue) >= totalLength) {
+                                marker = 1;
                             }
                         }
-                    //}
+
+                        if (AppInstance.getInstance().getConfigManager().isDeleteTs()) {
+                            streamer.setCurMediaSegmentCount(
+                                    streamer.getCurMediaSegmentCount() + 1
+                            );
+                        }
+                    }
                     //
-
-                    /*res.setStatus(RtspResponseStatuses.OK);
-                    res.headers().add(
-                            "Session",
-                            curSessionId
-                    );
-                    sendResponse(rtspUnit, streamer, ctx, req, res);*/
-
-                    /*if (NettyChannelManager.getInstance().getStreamer(streamer.getSessionId(), listenIp, listenPort) != null) {
-                        NettyChannelManager.getInstance().stopStreaming(
-                                streamer.getSessionId(),
-                                listenIp,
-                                listenPort
-                        );
-                        logger.debug("({}) ({}) ({}) Stop to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspId(), streamer.getSessionId(), destPort);
-                    }*/
                 }
                 // 5) TEARDOWN
                 else if (req.method() == RtspMethods.TEARDOWN) {
