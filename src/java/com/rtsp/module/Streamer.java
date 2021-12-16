@@ -1,5 +1,8 @@
 package com.rtsp.module;
 
+import com.rtsp.config.ConfigManager;
+import com.rtsp.module.netty.handler.StreamerChannelHandler;
+import com.rtsp.service.AppInstance;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -10,15 +13,13 @@ import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.rtsp.config.ConfigManager;
-import com.rtsp.module.netty.handler.StreamerChannelHandler;
-import com.rtsp.service.AppInstance;
 
 import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @class public class Streamer
@@ -28,11 +29,11 @@ public class Streamer {
 
     private static final Logger logger = LoggerFactory.getLogger(Streamer.class);
 
-    /* Streamer id */
-    private final String sessionId;
+    private NioEventLoopGroup group = null;
+    private final Bootstrap b = new Bootstrap();
 
-    /* 메시지 송신용 채널 */
-    private Channel channel;
+    private final String sessionId; /* Streamer id */
+    private Channel channel; /* 메시지 송신용 채널 */
 
     private final String listenIp;
     private final int listenPort;
@@ -42,22 +43,18 @@ public class Streamer {
 
     private VideoStream video = null;
     private String uri = null;
-
     private File m3u8File = null;
-
-    private NioEventLoopGroup group = null;
-    private final Bootstrap b = new Bootstrap();
-
     private final Random random = new Random();
-
     private int ssrc;
     private int curSeqNum;
     private int curTimeStamp;
+    private int curTsIndex = 0;
 
-    private boolean isMediaEnabled = false;
     private List<MediaSegment> mediaSegmentList = null;
     private String m3u8PathOnly = null;
     private int curMediaSegmentCount = 0;
+
+    private final AtomicBoolean isPaused = new AtomicBoolean(false);
 
     /////////////////////////////////////////////////////////////////////
 
@@ -68,8 +65,11 @@ public class Streamer {
         this.listenPort = listenPort;
 
         ssrc = random.nextInt(Integer.MAX_VALUE);
-        curSeqNum = random.nextInt(5000);
-        curTimeStamp = random.nextInt(5000);
+        //curSeqNum = random.nextInt(100);
+        //curTimeStamp = random.nextInt(100);
+
+        curSeqNum = 1;
+        curTimeStamp = 0;
 
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }
@@ -102,7 +102,6 @@ public class Streamer {
                         );
                     }
                 });
-
         return this;
     }
 
@@ -120,10 +119,22 @@ public class Streamer {
             );
             channel = channelFuture.channel();
 
+            if (isPaused.get()) {
+                isPaused.set(false);
+            }
             logger.debug("({}) Streamer is started. ({})", sessionId, this);
         } catch (Exception e) {
             logger.warn("({}) Streamer.start.Exception", sessionId, e);
         }
+    }
+
+    public void pause () {
+        if (channel == null) {
+            return;
+        }
+
+        isPaused.set(true);
+        logger.debug("({}) Streamer is paused. ({})", sessionId, this);
     }
 
     public void stop () {
@@ -133,6 +144,7 @@ public class Streamer {
             channel = null;
         }
 
+        isPaused.set(true);
         logger.debug("({}) Streamer is stopped. ({})", sessionId, this);
     }
 
@@ -149,16 +161,20 @@ public class Streamer {
     public void finish () {
         stop();
 
-        if (m3u8File != null) {
-            removeFile(m3u8File);
-            m3u8File = null;
+        if (AppInstance.getInstance().getConfigManager().isDeleteM3u8()) {
+            if (m3u8File != null) {
+                removeFile(m3u8File);
+                m3u8File = null;
+            }
         }
 
-        if (mediaSegmentList != null && !mediaSegmentList.isEmpty()) {
-            for (MediaSegment mediaSegment : mediaSegmentList) {
-                String tsFileName = mediaSegment.uri();
-                tsFileName = m3u8PathOnly + File.separator + tsFileName;
-                removeFile(new File(tsFileName.trim()));
+        if (AppInstance.getInstance().getConfigManager().isDeleteTs()) {
+            if (mediaSegmentList != null && !mediaSegmentList.isEmpty()) {
+                for (MediaSegment mediaSegment : mediaSegmentList) {
+                    String tsFileName = mediaSegment.uri();
+                    tsFileName = m3u8PathOnly + File.separator + tsFileName;
+                    removeFile(new File(tsFileName.trim()));
+                }
             }
         }
 
@@ -170,6 +186,14 @@ public class Streamer {
     }
 
     /////////////////////////////////////////////////////////////////////
+
+    public int getCurTsIndex() {
+        return curTsIndex;
+    }
+
+    public void setCurTsIndex(int curTsIndex) {
+        this.curTsIndex = curTsIndex;
+    }
 
     public String getDestIp() {
         return destIp;
@@ -256,15 +280,6 @@ public class Streamer {
         this.curMediaSegmentCount = curMediaSegmentCount;
     }
 
-    public boolean isMediaEnabled() {
-        return isMediaEnabled;
-    }
-
-    public void setMediaEnabled(boolean isMediaEnabled) {
-        this.isMediaEnabled = isMediaEnabled;
-        logger.debug("({}) Streamer mediaEnabled is set up. ({})", sessionId, isMediaEnabled);
-    }
-
     public int getSsrc() {
         return ssrc;
     }
@@ -330,7 +345,6 @@ public class Streamer {
     }
 
     /////////////////////////////////////////////////////////////////////
-
 
     @Override
     public String toString() {

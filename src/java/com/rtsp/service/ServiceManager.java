@@ -1,9 +1,9 @@
 package com.rtsp.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import com.rtsp.config.ConfigManager;
 import com.rtsp.module.RtspManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @class public class ServiceManager

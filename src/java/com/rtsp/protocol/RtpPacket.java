@@ -423,7 +423,7 @@ public class RtpPacket implements Serializable {
      * @param i sequence number (16 bits)
      */
     public void setSeqNum(long i) throws IllegalArgumentException {
-        if ((0 <= i) && (i <= ByteUtil.getMaxLongValueForNumBits(16))) {
+        if ((0 <= i) && (i <= ByteUtil.getMaxLongValueForNumBits(32))) {
             seqNum = i;
         } else {
             throw new IllegalArgumentException(RtpException.OUT_OF_RANGE);

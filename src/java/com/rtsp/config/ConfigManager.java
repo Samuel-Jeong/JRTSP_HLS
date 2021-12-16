@@ -3,7 +3,7 @@ package com.rtsp.config;
 import org.ini4j.Ini;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.rtsp.service.ServiceManager;
+import rtsp.service.ServiceManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,6 +39,7 @@ public class ConfigManager {
 
     public static final String FIELD_HLS_LIST_SIZE = "HLS_LIST_SIZE";
     public static final String FIELD_HLS_TIME = "HLS_TIME";
+    public static final String FIELD_DELETE_M3U8 = "DELETE_M3U8";
     public static final String FIELD_DELETE_TS = "DELETE_TS";
 
     // COMMON
@@ -59,6 +60,7 @@ public class ConfigManager {
     // HLS
     private int hlsListSize = 0;
     private int hlsTime = 0;
+    private boolean deleteM3u8 = true;
     private boolean deleteTs = true;
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +177,7 @@ public class ConfigManager {
             return;
         }
 
+        this.deleteM3u8 = Boolean.parseBoolean(getIniValue(SECTION_HLS, FIELD_DELETE_M3U8));
         this.deleteTs = Boolean.parseBoolean(getIniValue(SECTION_HLS, FIELD_DELETE_TS));
 
         logger.debug("Load [{}] config...(OK)", SECTION_HLS);
@@ -261,6 +264,10 @@ public class ConfigManager {
 
     public int getHlsTime() {
         return hlsTime;
+    }
+
+    public boolean isDeleteM3u8() {
+        return deleteM3u8;
     }
 
     public boolean isDeleteTs() {

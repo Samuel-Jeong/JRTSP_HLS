@@ -1,5 +1,9 @@
 package com.rtsp.module.netty.module;
 
+import com.rtsp.module.Streamer;
+import com.rtsp.module.netty.base.NettyChannelType;
+import com.rtsp.module.netty.handler.RtcpChannelHandler;
+import com.rtsp.module.netty.handler.RtspChannelHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.*;
@@ -10,10 +14,6 @@ import io.netty.handler.codec.rtsp.RtspDecoder;
 import io.netty.handler.codec.rtsp.RtspEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.rtsp.module.Streamer;
-import com.rtsp.module.netty.base.NettyChannelType;
-import com.rtsp.module.netty.handler.RtcpChannelHandler;
-import com.rtsp.module.netty.handler.RtspChannelHandler;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -291,6 +291,15 @@ public class NettyChannel {
         }
 
         streamer.start();
+    }
+
+    public void pauseStreaming(String key) {
+        Streamer streamer = getStreamer(key);
+        if (streamer == null) {
+            return;
+        }
+
+        streamer.pause();
     }
 
     public void stopStreaming(String key) {

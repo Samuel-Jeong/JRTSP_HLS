@@ -11,6 +11,8 @@ import com.rtsp.service.ResourceManager;
  */
 public class RtspManager {
 
+    public static final String RTSP_RES_SESSION = "Session";
+
     private static RtspManager rtspManager = null;
 
     private RtspUnit rtspUnit = null;
