@@ -4,8 +4,8 @@ import com.fsm.StateManager;
 import com.rtsp.fsm.RtspFsmManager;
 import com.rtsp.module.Streamer;
 import com.rtsp.module.netty.NettyChannelManager;
-import com.rtsp.module.netty.base.NettyChannelType;
-import com.rtsp.module.netty.module.NettyChannel;
+import com.rtsp.module.netty.module.RtcpNettyChannel;
+import com.rtsp.module.netty.module.RtspNettyChannel;
 import com.rtsp.service.AppInstance;
 import com.rtsp.service.ResourceManager;
 import org.slf4j.Logger;
@@ -21,89 +21,31 @@ public class RtspUnit {
 
     private static final Logger logger = LoggerFactory.getLogger(RtspUnit.class);
 
-    private final String rtspId = UUID.randomUUID().toString(); // ID of the RTSP session
-
-    private int congestionLevel = 0;
-
-    private final NettyChannel rtspChannel;
-    private final NettyChannel rtcpChannel;
-    private int clientPort = 0;
-
-    // TODO: Must manage the streamers
-    private Streamer streamer = null;
-    //
-
+    private final String rtspUnitId; // ID of the RTSP session by client
+    private final RtspNettyChannel rtspChannel;
+    private final RtcpNettyChannel rtcpChannel;
     private final RtspFsmManager rtspFsmManager = new RtspFsmManager();
     private final String rtspStateUnitId;
+    private int congestionLevel = 0;
+    //
+    private int serverPort = 0;
+    // TODO: Must manage the streamers
+    private Streamer streamer = null;
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public RtspUnit(String listenIp, int listenPort) {
+    public RtspUnit(String rtspUnitId, String listenIp, int listenPort) {
+        this.rtspUnitId = rtspUnitId;
         this.rtspStateUnitId = String.valueOf(UUID.randomUUID());
 
         int rtcpListenPort = AppInstance.getInstance().getConfigManager().getLocalRtcpListenPort();
-        rtspChannel = NettyChannelManager.getInstance().openChannel(listenIp, listenPort, NettyChannelType.RTSP);
-        rtcpChannel = NettyChannelManager.getInstance().openChannel(listenIp, rtcpListenPort, NettyChannelType.RTCP);
+        rtspChannel = NettyChannelManager.getInstance().openRtspChannel(rtspUnitId, listenIp, listenPort);
+        rtcpChannel = NettyChannelManager.getInstance().openRtcpChannel(rtspUnitId, listenIp, rtcpListenPort);
 
         rtspFsmManager.init(this);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
-
-    public StateManager getStateManager() {
-        return rtspFsmManager.getStateManager();
-    }
-
-    public String getRtspStateUnitId() {
-        return rtspStateUnitId;
-    }
-
-    public Streamer getStreamer() {
-        return streamer;
-    }
-
-    public void setStreamer(Streamer streamer) {
-        this.streamer = streamer;
-    }
-
-    public String getRtspId() {
-        return rtspId;
-    }
-
-    public int getCongestionLevel() {
-        return congestionLevel;
-    }
-
-    public void setCongestionLevel(int congestionLevel) {
-        this.congestionLevel = congestionLevel;
-    }
-
-    public NettyChannel getRtspChannel() {
-        return rtspChannel;
-    }
-
-    public NettyChannel getRtcpChannel() {
-        return rtcpChannel;
-    }
-
-    public int getClientPort() {
-        return clientPort;
-    }
-
-    public void setClientPort(int clientPort) {
-        if (clientPort <= 0) {
-            logger.warn("({}) RtspUnit clientPort is not set up. ({})", rtspId, clientPort);
-            return;
-        }
-
-        if (this.clientPort != clientPort) {
-            this.clientPort = clientPort;
-            ResourceManager.getInstance().restorePort(clientPort);
-            logger.debug("({}) RtspUnit clientPort is set up. ({})", rtspId, clientPort);
-        }
-    }
-
-    /////////////////////////////////////////////////////////////////////
 
     public static String getPureFileName(String uri) {
         if (uri.startsWith("rtsp")) {
@@ -127,6 +69,61 @@ public class RtspUnit {
         }
 
         return uri;
+    }
+
+    public StateManager getStateManager() {
+        return rtspFsmManager.getStateManager();
+    }
+
+    public String getRtspStateUnitId() {
+        return rtspStateUnitId;
+    }
+
+    public Streamer getStreamer() {
+        return streamer;
+    }
+
+    public void setStreamer(Streamer streamer) {
+        this.streamer = streamer;
+    }
+
+    public String getRtspId() {
+        return rtspUnitId;
+    }
+
+    public int getCongestionLevel() {
+        return congestionLevel;
+    }
+
+    public void setCongestionLevel(int congestionLevel) {
+        this.congestionLevel = congestionLevel;
+    }
+
+    public RtspNettyChannel getRtspChannel() {
+        return rtspChannel;
+    }
+
+    public RtcpNettyChannel getRtcpChannel() {
+        return rtcpChannel;
+    }
+
+    public int getServerPort() {
+        return serverPort;
+    }
+
+    /////////////////////////////////////////////////////////////////////
+
+    public void setServerPort(int serverPort) {
+        if (serverPort <= 0) {
+            logger.warn("({}) RtspUnit serverPort is not set up. ({})", rtspUnitId, serverPort);
+            return;
+        }
+
+        if (this.serverPort != serverPort) {
+            this.serverPort = serverPort;
+            ResourceManager.getInstance().restorePort(serverPort);
+            logger.debug("({}) RtspUnit serverPort is set up. ({})", rtspUnitId, serverPort);
+        }
     }
 
 }

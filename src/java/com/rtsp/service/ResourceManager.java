@@ -15,18 +15,17 @@ public class ResourceManager {
 
     private static ResourceManager resourceManager = null;
     private final ConcurrentLinkedQueue<Integer> channelQueues;
-
+    private final int portGap = 2;
     private int localUdpPortMin = 0;
     private int localUdpPortMax = 0;
-    private final int portGap = 2;
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public ResourceManager( ) {
+    public ResourceManager() {
         channelQueues = new ConcurrentLinkedQueue<>();
     }
 
-    public static ResourceManager getInstance ( ) {
+    public static ResourceManager getInstance() {
         if (resourceManager == null) {
             resourceManager = new ResourceManager();
         }
@@ -56,14 +55,14 @@ public class ResourceManager {
         );
     }
 
-    public void releaseResource () {
+    public void releaseResource() {
         channelQueues.clear();
         logger.info("Release RTP port resource in Queue. (port range: {} - {}, gap={})",
                 localUdpPortMin, localUdpPortMax, portGap
         );
     }
 
-    public int takePort () {
+    public int takePort() {
         if (channelQueues.isEmpty()) {
             logger.warn("RTP port resource in Queue is empty.");
             return -1;
@@ -83,7 +82,7 @@ public class ResourceManager {
         return port;
     }
 
-    public void restorePort (int port) {
+    public void restorePort(int port) {
         if (!channelQueues.contains(port)) {
             try {
                 channelQueues.offer(port);
@@ -93,7 +92,7 @@ public class ResourceManager {
         }
     }
 
-    public void removePort (int port) {
+    public void removePort(int port) {
         try {
             channelQueues.remove(port);
         } catch (Exception e) {

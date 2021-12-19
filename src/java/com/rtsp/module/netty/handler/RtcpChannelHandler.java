@@ -1,8 +1,9 @@
-package com.rtsp.module.netty.handler;
+package rtsp.module.netty.handler;
 
 import com.rtsp.module.RtspManager;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.protocol.RtcpPacket;
+import com.rtsp.protocol.base.ByteUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -17,19 +18,21 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
 
     private static final Logger logger = LoggerFactory.getLogger(RtcpChannelHandler.class);
 
+    private final String rtspUnitId;
     private final String name;
     private final String listenIp;
     private final int listenPort;
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public RtcpChannelHandler(String listenIp, int listenPort) {
-        this.name = listenIp + ":" + listenPort;
+    public RtcpChannelHandler(String rtspUnitId, String listenIp, int listenPort) {
+        this.name = "RTCP_" + rtspUnitId + "_" + listenIp + ":" + listenPort;
 
+        this.rtspUnitId = rtspUnitId;
         this.listenIp = listenIp;
         this.listenPort = listenPort;
 
-        logger.debug("RtcpChannelHandler is created. (listenIp={}, listenPort={})", listenIp, listenPort);
+        logger.debug("({}) RtcpChannelHandler is created. (listenIp={}, listenPort={})", name, listenIp, listenPort);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +40,7 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
     @Override
     protected void channelRead0 (ChannelHandlerContext ctx, DatagramPacket msg) {
         try {
-            RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit();
+            RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(rtspUnitId);
             if (rtspUnit == null) {
                 return;
             }
@@ -55,10 +58,12 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
             byte[] data = new byte[readBytes];
             buf.getBytes(0, data);
 
-            RtcpPacket rtcpPkt = new RtcpPacket(data);
-            logger.debug("[RTCP] {}", rtcpPkt);
+            logger.debug("({}) data: [{}], readBytes: [{}]", name, ByteUtil.byteArrayToHex(data), readBytes);
 
-            float fractionLost = rtcpPkt.fractionLost;
+            RtcpPacket rtcpPacket = new RtcpPacket(data);
+            logger.debug("({}) [RTCP] {}", name, rtcpPacket);
+
+            float fractionLost = rtcpPacket.fractionLost;
             if (fractionLost >= 0 && fractionLost <= 0.01) {
                 rtspUnit.setCongestionLevel(0);
             }
@@ -79,4 +84,17 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+
+    public String getName() {
+        return name;
+    }
+
+    public String getListenIp() {
+        return listenIp;
+    }
+
+    public int getListenPort() {
+        return listenPort;
+    }
 }

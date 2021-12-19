@@ -45,9 +45,61 @@ public class FfmpegManager {
         //Nothing
     }
 
+    public static MediaPlaylist createPlayList() {
+        MediaPlaylist mediaPlaylist = MediaPlaylist.builder()
+                .version(3)
+                .targetDuration(2)
+                .mediaSequence(0)
+                .ongoing(false)
+                .addMediaSegments(
+                        MediaSegment.builder()
+                                .duration(9.009)
+                                .uri("http://media.example.com/first.ts")
+                                .build(),
+                        MediaSegment.builder()
+                                .duration(9.009)
+                                .uri("http://media.example.com/second.ts")
+                                .build(),
+                        MediaSegment.builder()
+                                .duration(3.003)
+                                .uri("http://media.example.com/third.ts")
+                                .build())
+                .build();
+
+        MediaPlaylistParser parser = new MediaPlaylistParser();
+        logger.debug("{}", parser.writePlaylistAsString(mediaPlaylist));
+
+        return mediaPlaylist;
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
 
-    public double convertMp4ToM3u8(String srcFilePath, String destTotalFilePath, long startTime) {
+    public static void updatePlayList(String m3u8Path, int mediaSequence) {
+        try {
+            MediaPlaylistParser parser = new MediaPlaylistParser(ParsingMode.STRICT);
+            MediaPlaylist playlist = parser.readPlaylist(Paths.get(m3u8Path));
+            MediaPlaylist updated = MediaPlaylist.builder()
+                    .from(playlist)
+                    .version(3)
+                    .mediaSequence(mediaSequence)
+                    .build();
+            logger.debug("{}", parser.writePlaylistAsString(updated));
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.updatePlayList.Exception", e);
+        }
+    }
+
+    public double getFileTime(String srcFilePath) {
+        try {
+            IsoFile isoFile = new IsoFile(srcFilePath);
+            return (double) isoFile.getMovieBox().getMovieHeaderBox().getDuration() / isoFile.getMovieBox().getMovieHeaderBox().getTimescale();
+        } catch (Exception e) {
+            logger.warn("Fail to get the file time. (srcFilePath={})", srcFilePath);
+            return 0;
+        }
+    }
+
+    public void convertMp4ToM3u8(String srcFilePath, String destTotalFilePath, long fileTime, long startTime, long endTime) {
         String destFilePathOnly = destTotalFilePath.substring(
                 0,
                 destTotalFilePath.lastIndexOf("/")
@@ -58,7 +110,6 @@ public class FfmpegManager {
             logger.debug("Success to make the directory. ({})", destFilePathOnly);
         }
 
-        double lengthInSeconds;
 
         //
         try {
@@ -72,23 +123,35 @@ public class FfmpegManager {
             }
             //FFmpegProbeResult in = ffprobe.probe(configManager.getFfprobePath());
 
-            IsoFile isoFile = new IsoFile(srcFilePath);
-            lengthInSeconds = (double) isoFile.getMovieBox().getMovieHeaderBox().getDuration() / isoFile.getMovieBox().getMovieHeaderBox().getTimescale();
+            FFmpegBuilder builder;
+            if (endTime != 0) {
+                builder = new FFmpegBuilder()
+                        .overrideOutputFiles(true)
+                        .setInput(srcFilePath)
+                        .addOutput(destTotalFilePath)
+                        .setFormat("hls")
 
-            FFmpegBuilder builder = new FFmpegBuilder()
-                    .overrideOutputFiles(true)
-                    .setInput(srcFilePath)
-                    .addOutput(destTotalFilePath)
-                    .setFormat("hls")
+                        .addExtraArgs("-hls_list_size", String.valueOf(0))
+                        .addExtraArgs("-hls_time", String.valueOf(fileTime / 2))
+                        //.addExtraArgs("-t", FFmpegUtils.toTimecode(endTime, TimeUnit.MILLISECONDS))
+                        .addExtraArgs("-t", String.valueOf(endTime))
+                        .done();
+            } else {
+                builder = new FFmpegBuilder()
+                        .overrideOutputFiles(true)
+                        .setInput(srcFilePath)
+                        .addOutput(destTotalFilePath)
+                        .setFormat("hls")
 
-                    .addExtraArgs("-start_number", String.valueOf(0))
-                    .addExtraArgs("-hls_list_size", String.valueOf(0))
-                    .addExtraArgs("-hls_time", String.valueOf((long) lengthInSeconds / 2))
-                    //.addExtraArgs("-hls_flags", "omit_endlist")
-                    //.addExtraArgs("-hls_flags", "discont_start")
-                    //.addExtraArgs("-hls_flags", "delete_segments")
-                    //.addExtraArgs("-hls_flags", "append_list")
-                    .done();
+                        .addExtraArgs("-hls_list_size", String.valueOf(0))
+                        .addExtraArgs("-hls_time", String.valueOf(fileTime / 2))
+                        //.addExtraArgs("-hls_flags", "omit_endlist")
+                        //.addExtraArgs("-hls_flags", "discont_start")
+                        //.addExtraArgs("-hls_flags", "delete_segments")
+                        //.addExtraArgs("-hls_flags", "append_list")
+                        .done();
+            }
+
             builder.setStartOffset(startTime, TimeUnit.SECONDS);
             //builder.readAtNativeFrameRate(); > for live streaming... not useful to offline streaming
 
@@ -120,7 +183,7 @@ public class FfmpegManager {
             });
             job.run();*/
         } catch (Exception e) {
-            return 0;
+            // ignore
         }
         //
 
@@ -189,50 +252,6 @@ public class FfmpegManager {
             }
         }*/
         //
-
-        return lengthInSeconds;
-    }
-
-    public static MediaPlaylist createPlayList() {
-        MediaPlaylist mediaPlaylist = MediaPlaylist.builder()
-                .version(3)
-                .targetDuration(2)
-                .mediaSequence(0)
-                .ongoing(false)
-                .addMediaSegments(
-                        MediaSegment.builder()
-                                .duration(9.009)
-                                .uri("http://media.example.com/first.ts")
-                                .build(),
-                        MediaSegment.builder()
-                                .duration(9.009)
-                                .uri("http://media.example.com/second.ts")
-                                .build(),
-                        MediaSegment.builder()
-                                .duration(3.003)
-                                .uri("http://media.example.com/third.ts")
-                                .build())
-                .build();
-
-        MediaPlaylistParser parser = new MediaPlaylistParser();
-        logger.debug("{}", parser.writePlaylistAsString(mediaPlaylist));
-
-        return mediaPlaylist;
-    }
-
-    public static void updatePlayList(String m3u8Path, int mediaSequence) {
-        try {
-            MediaPlaylistParser parser = new MediaPlaylistParser(ParsingMode.STRICT);
-            MediaPlaylist playlist = parser.readPlaylist(Paths.get(m3u8Path));
-            MediaPlaylist updated = MediaPlaylist.builder()
-                    .from(playlist)
-                    .version(3)
-                    .mediaSequence(mediaSequence)
-                    .build();
-            logger.debug("{}", parser.writePlaylistAsString(updated));
-        } catch (Exception e) {
-            logger.warn("FfmpegManager.updatePlayList.Exception", e);
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////

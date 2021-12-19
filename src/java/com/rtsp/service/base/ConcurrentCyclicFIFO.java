@@ -5,37 +5,39 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * @class
- * @brief
+ * @class public class ConcurrentCyclicFIFO<E>
+ * @brief Concurrent Cyclic FIFO queue class
  */
 public class ConcurrentCyclicFIFO<E> {
 
-    static class Node<E> {
-        volatile E item;
-        Node<E> next;
-
-        Node(E x) {
-            item = x;
-        }
-    }
-
-    /** Current number of elements */
+    /**
+     * Current number of elements
+     */
     private final AtomicInteger count = new AtomicInteger(0);
-
-    /** Head of linked list */
+    /**
+     * Lock held by take, poll, etc
+     */
+    private final ReentrantLock takeLock = new ReentrantLock();
+    /**
+     * Wait queue for waiting takes
+     */
+    private final Condition notEmpty = takeLock.newCondition();
+    /**
+     * Lock held by put, offer, etc
+     */
+    private final ReentrantLock putLock = new ReentrantLock();
+    /**
+     * Head of linked list
+     */
     private transient Node<E> head;
-
-    /** Tail of linked list */
+    /**
+     * Tail of linked list
+     */
     private transient Node<E> last;
 
-    /** Lock held by take, poll, etc */
-    private final ReentrantLock takeLock = new ReentrantLock();
-
-    /** Wait queue for waiting takes */
-    private final Condition notEmpty = takeLock.newCondition();
-
-    /** Lock held by put, offer, etc */
-    private final ReentrantLock putLock = new ReentrantLock();
+    public ConcurrentCyclicFIFO() {
+        last = head = new Node<E>(null);
+    }
 
     /**
      * Signals a waiting take. Called only from put/offer (which do not
@@ -54,8 +56,7 @@ public class ConcurrentCyclicFIFO<E> {
     /**
      * Creates a node and links it at end of queue.
      *
-     * @param x
-     *            the item
+     * @param x the item
      */
     private void insert(Node<E> x) {
         last = last.next = x;
@@ -74,10 +75,6 @@ public class ConcurrentCyclicFIFO<E> {
         head.item = null;
 
         return current;
-    }
-
-    public ConcurrentCyclicFIFO() {
-        last = head = new Node<E>(null);
     }
 
     public int size() {
@@ -185,6 +182,15 @@ public class ConcurrentCyclicFIFO<E> {
         } finally {
             takeLock.unlock();
             putLock.unlock();
+        }
+    }
+
+    static class Node<E> {
+        volatile E item;
+        Node<E> next;
+
+        Node(E x) {
+            item = x;
         }
     }
 }

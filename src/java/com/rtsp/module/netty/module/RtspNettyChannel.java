@@ -1,9 +1,9 @@
 package com.rtsp.module.netty.module;
 
+import com.rtsp.config.ConfigManager;
 import com.rtsp.module.Streamer;
-import com.rtsp.module.netty.base.NettyChannelType;
-import com.rtsp.module.netty.handler.RtcpChannelHandler;
 import com.rtsp.module.netty.handler.RtspChannelHandler;
+import com.rtsp.service.AppInstance;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.*;
@@ -25,43 +25,43 @@ import java.util.concurrent.locks.ReentrantLock;
  * @class public class NettyChannel
  * @brief NettyChannel class
  */
-public class NettyChannel {
+public class RtspNettyChannel { // > TCP
 
-    private static final Logger logger = LoggerFactory.getLogger(NettyChannel.class);
+    private static final Logger logger = LoggerFactory.getLogger(RtspNettyChannel.class);
 
-    private EventLoopGroup bossGroup = new NioEventLoopGroup();
+    private final String rtspUnitId;
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
-
-    private ServerBootstrap b;
-
-    /*메시지 수신용 채널 */
-    private Channel serverChannel;
-
     private final String listenIp;
     private final int listenPort;
-
     /* Streamer Map */
     /* Key: To MDN, value: Streamer */
     private final HashMap<String, Streamer> messageSenderMap = new HashMap<>();
     private final ReentrantLock messageSenderLock = new ReentrantLock();
+    private EventLoopGroup bossGroup = new NioEventLoopGroup();
+    private ServerBootstrap b;
+    /*메시지 수신용 채널 */
+    private Channel serverChannel;
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public NettyChannel(String ip, int port) {
+    public RtspNettyChannel(String rtspUnitId, String ip, int port) {
+        this.rtspUnitId = rtspUnitId;
         this.listenIp = ip;
         this.listenPort = port;
     }
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public void run (String ip, int port, int channelType) {
+    public void run(String ip, int port) {
+        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        int listenRtcpPort = configManager.getLocalRtcpListenPort();
+        int recvBufSize = configManager.getRecvBufSize();
+
         bossGroup = new NioEventLoopGroup();
         b = new ServerBootstrap();
         b.group(bossGroup, workerGroup);
         b.channel(NioServerSocketChannel.class)
-                /*.option(ChannelOption.SO_BROADCAST, false)
-                .option(ChannelOption.SO_SNDBUF, 33554432)*/
-                .option(ChannelOption.SO_RCVBUF, 16777216)
+                .option(ChannelOption.SO_RCVBUF, recvBufSize)
                 .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_REUSEADDR, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
@@ -69,30 +69,15 @@ public class NettyChannel {
                     @Override
                     protected void initChannel(SocketChannel socketChannel) {
                         final ChannelPipeline pipeline = socketChannel.pipeline();
-
-                        switch (channelType) {
-                            case NettyChannelType.RTSP:
-                                pipeline.addLast(new RtspDecoder(), new RtspEncoder());
-                                pipeline.addLast(
-                                        //new DefaultEventExecutorGroup(1),
-                                        new RtspChannelHandler(
-                                                ip,
-                                                port
-                                        )
-                                );
-                                break;
-                            case NettyChannelType.RTCP:
-                                pipeline.addLast(
-                                        //new DefaultEventExecutorGroup(1),
-                                        new RtcpChannelHandler(
-                                                ip,
-                                                port
-                                        )
-                                );
-                                break;
-                            default:
-                                break;
-                        }
+                        pipeline.addLast(new RtspDecoder(), new RtspEncoder());
+                        pipeline.addLast(
+                                new RtspChannelHandler(
+                                        rtspUnitId,
+                                        ip,
+                                        port,
+                                        listenRtcpPort
+                                )
+                        );
                     }
                 });
     }
@@ -101,7 +86,7 @@ public class NettyChannel {
      * @fn public void stop()
      * @brief Netty Channel 을 종료하는 함수
      */
-    public void stop () {
+    public void stop() {
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
     }
@@ -115,7 +100,7 @@ public class NettyChannel {
      * @fn public Channel openChannel(String ip, int port)
      * @brief Netty Server Channel 을 생성하는 함수
      */
-    public Channel openChannel (String ip, int port) {
+    public Channel openChannel(String ip, int port) {
         if (serverChannel != null) {
             logger.warn("Channel is already opened.");
             return null;
@@ -148,7 +133,7 @@ public class NettyChannel {
      * @fn public void closeChannel()
      * @brief Netty Server Channel 을 닫는 함수
      */
-    public void closeChannel ( ) {
+    public void closeChannel() {
         if (serverChannel == null) {
             logger.warn("Channel is already closed.");
             return;
@@ -169,7 +154,7 @@ public class NettyChannel {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public Streamer addStreamer (String key) {
+    public Streamer addStreamer(String key) {
         try {
             messageSenderLock.lock();
 
@@ -203,7 +188,7 @@ public class NettyChannel {
         }
     }
 
-    public void deleteStreamer (String key) {
+    public void deleteStreamer(String key) {
         try {
             messageSenderLock.lock();
 
@@ -223,7 +208,7 @@ public class NettyChannel {
         }
     }
 
-    public void deleteAllStreamers () {
+    public void deleteAllStreamers() {
         try {
             messageSenderLock.lock();
 
@@ -266,12 +251,12 @@ public class NettyChannel {
     }
 
     /**
-     * @fn public Streamer getStreamer (String key)
-     * @brief 지정한 key 에 해당하는 Streamer 를 반환하는 함수
      * @param key Streamer key
      * @return 성공 시 Streamer 객체, 실패 시 null 반환
+     * @fn public Streamer getStreamer (String key)
+     * @brief 지정한 key 에 해당하는 Streamer 를 반환하는 함수
      */
-    public Streamer getStreamer (String key) {
+    public Streamer getStreamer(String key) {
         try {
             messageSenderLock.lock();
 

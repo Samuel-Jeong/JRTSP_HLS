@@ -38,6 +38,21 @@ public class JobExecutor {
 
     ////////////////////////////////////////////////////////////////////////////////
 
+    public void stop() {
+        scheduledThreadPoolExecutor.shutdown();
+        priorityQueue.clear();
+    }
+
+    public void addJob(Job job) {
+        priorityQueue.offer(job);
+    }
+
+    public int getIndex() {
+        return index;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
     private class Worker implements Runnable {
 
         @Override
@@ -56,20 +71,5 @@ public class JobExecutor {
             }
         }
 
-    }
-
-    public void stop() {
-        scheduledThreadPoolExecutor.shutdown();
-        priorityQueue.clear();
-    }
-
-    public void addJob(Job job) {
-        priorityQueue.offer(job);
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-
-    public int getIndex() {
-        return index;
     }
 }

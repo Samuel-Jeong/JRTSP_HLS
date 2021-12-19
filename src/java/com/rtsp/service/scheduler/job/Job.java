@@ -85,10 +85,6 @@ public abstract class Job implements Runnable {
         return totalRunCount;
     }
 
-    public void setCurRemainRunCount(int count) {
-        curRemainRunCount.set(count);
-    }
-
     public int incCurRemainRunCount() {
         return curRemainRunCount.incrementAndGet();
     }
@@ -99,6 +95,10 @@ public abstract class Job implements Runnable {
 
     public int getCurRemainRunCount() {
         return curRemainRunCount.get();
+    }
+
+    public void setCurRemainRunCount(int count) {
+        curRemainRunCount.set(count);
     }
 
     public String getName() {

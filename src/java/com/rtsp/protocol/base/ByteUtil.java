@@ -5,16 +5,24 @@ import java.nio.ByteOrder;
 
 public class ByteUtil {
 
-    /** The maximum number of bytes in a UDP packet. */
+    /**
+     * The maximum number of bytes in a UDP packet.
+     */
     public static final int MAX_UDP_PACKET_SIZE = 65537;
 
-    /** Number of bytes in a Java short. */
+    /**
+     * Number of bytes in a Java short.
+     */
     public static final int NUM_BYTES_IN_SHORT = 2;
 
-    /** Number of bytes in a Java int. */
+    /**
+     * Number of bytes in a Java int.
+     */
     public static final int NUM_BYTES_IN_INT = 4;
 
-    /** Number of bytes in a Java long. */
+    /**
+     * Number of bytes in a Java long.
+     */
     public static final int NUM_BYTES_IN_LONG = 8;
 
     private static final long[] maxValueCache = new long[64];
@@ -58,14 +66,28 @@ public class ByteUtil {
         return Short.parseShort(s, 16);
     }
 
-    public static byte[] intToBytes(int i) {
+    public static byte[] intToBytes(int i, boolean isBigEndian) {
         ByteBuffer byteBuffer = ByteBuffer.allocate(NUM_BYTES_IN_INT);
+
+        if (isBigEndian) {
+            byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        } else {
+            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        }
+
         byteBuffer.putInt(i);
         return byteBuffer.array();
     }
 
-    public static int bytesToInt(byte[] bytes) {
+    public static int bytesToInt(byte[] bytes, boolean isBigEndian) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+
+        if (isBigEndian) {
+            byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        } else {
+            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        }
+
         return byteBuffer.getInt();
     }
 
@@ -77,14 +99,28 @@ public class ByteUtil {
         return Integer.parseInt(s, 16);
     }
 
-    public static byte[] longToBytes(long l) {
+    public static byte[] longToBytes(long l, boolean isBigEndian) {
         ByteBuffer byteBuffer = ByteBuffer.allocate(NUM_BYTES_IN_LONG);
+
+        if (isBigEndian) {
+            byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        } else {
+            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        }
+
         byteBuffer.putLong(l);
         return byteBuffer.array();
     }
 
-    public static long bytesToLong(byte[] bytes) {
+    public static long bytesToLong(byte[] bytes, boolean isBigEndian) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+
+        if (isBigEndian) {
+            byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        } else {
+            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        }
+
         return byteBuffer.getLong();
     }
 
@@ -147,35 +183,12 @@ public class ByteUtil {
         }
     }
 
-    public static byte[] integerToByteArray(int value, boolean isBigEndian) {
-        if (isBigEndian) {
-            return new byte[]{
-                    (byte) ((value >> 24) & 0xff),
-                    (byte) ((value >> 16) & 0xff),
-                    (byte) ((value >> 8) & 0xff),
-                    (byte) (value & 0xff)
-            };
-        } else {
-            return new byte[]{
-                    (byte) (value & 0xff),
-                    (byte) ((value >> 8) & 0xff),
-                    (byte) ((value >> 16) & 0xff),
-                    (byte) ((value >> 24) & 0xff)
-            };
+    public static String byteArrayToHex(byte[] a) {
+        StringBuilder sb = new StringBuilder();
+        for (final byte b : a) {
+            sb.append(String.format("%02x ", b & 0xff));
         }
+        return sb.toString();
     }
 
-    public static int byteArrayToInteger(byte [] byteArray, boolean isBigEndian) {
-        if (isBigEndian) {
-            return (byteArray[0] << 24) +
-                    ((byteArray[1] & 0xFF) << 16) +
-                    ((byteArray[2] & 0xFF) << 8) +
-                    (byteArray[3] & 0xFF);
-        } else {
-            return (byteArray[0] & 0xFF) +
-                    ((byteArray[1] & 0xFF) << 8) +
-                    ((byteArray[2] & 0xFF) << 16) +
-                    (byteArray[3] << 24);
-        }
-    }
 }

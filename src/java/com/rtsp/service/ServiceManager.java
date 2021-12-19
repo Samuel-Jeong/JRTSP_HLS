@@ -1,9 +1,11 @@
 package com.rtsp.service;
 
-import com.rtsp.config.ConfigManager;
 import com.rtsp.module.RtspManager;
+import com.rtsp.module.netty.NettyChannelManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * @class public class ServiceManager
@@ -12,11 +14,8 @@ import org.slf4j.LoggerFactory;
 public class ServiceManager {
 
     private static final Logger logger = LoggerFactory.getLogger(ServiceManager.class);
-
-    private static ServiceManager serviceManager = null;
-
     private static final int DELAY = 1000;
-
+    private static ServiceManager serviceManager = null;
     private boolean isQuit = false;
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +25,7 @@ public class ServiceManager {
 
     }
 
-    public static ServiceManager getInstance ( ) {
+    public static ServiceManager getInstance() {
         if (serviceManager == null) {
             serviceManager = new ServiceManager();
         }
@@ -36,27 +35,18 @@ public class ServiceManager {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    private void start () {
+    private void start() {
         ResourceManager.getInstance().initResource();
-
-        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
-        RtspManager.getInstance().openRtspUnit(
-                configManager.getLocalListenIp(),
-                configManager.getLocalRtspListenPort()
-        );
 
         logger.debug("| All services are opened.");
     }
 
-    public void stop () {
-        TaskManager.getInstance().stop();
-
-        RtspManager.getInstance().closeRtspUnit();
-
+    public void stop() {
+        NettyChannelManager.getInstance().stop();
+        RtspManager.getInstance().closeAllRtspUnits();
         ResourceManager.getInstance().releaseResource();
 
         isQuit = true;
-
         logger.debug("| All services are closed.");
     }
 
@@ -64,12 +54,13 @@ public class ServiceManager {
      * @fn public void loop ()
      * @brief Main Service Loop
      */
-    public void loop () {
+    public void loop() {
         start();
 
+        TimeUnit timeUnit = TimeUnit.MILLISECONDS;
         while (!isQuit) {
             try {
-                Thread.sleep(DELAY);
+                timeUnit.sleep(DELAY);
             } catch (InterruptedException e) {
                 logger.warn("| ServiceManager.loop.InterruptedException", e);
             }
@@ -88,7 +79,7 @@ public class ServiceManager {
         // shutdown 로직 후에 join 할 thread
         private final Thread target;
 
-        public ShutDownHookHandler (String name, Thread target) {
+        public ShutDownHookHandler(String name, Thread target) {
             super(name);
 
             this.target = target;
@@ -100,7 +91,7 @@ public class ServiceManager {
          * @brief 정의된 Shutdown 로직을 수행하는 함수
          */
         @Override
-        public void run ( ) {
+        public void run() {
             try {
                 shutDown();
                 target.join();
@@ -114,7 +105,7 @@ public class ServiceManager {
          * @fn private void shutDown ()
          * @brief Runtime 에서 선언된 Handler 에서 사용할 서비스 중지 함수
          */
-        private void shutDown ( ) {
+        private void shutDown() {
             logger.warn("| Process is about to quit. (Ctrl+C)");
             ServiceManager.getInstance().stop();
         }

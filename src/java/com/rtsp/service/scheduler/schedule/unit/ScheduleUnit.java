@@ -10,9 +10,8 @@ import java.util.List;
 
 public class ScheduleUnit {
 
-    private static final Logger logger = LoggerFactory.getLogger(ScheduleUnit.class);
-
     public static final int DEFAULT_THREAD_COUNT = 5;
+    private static final Logger logger = LoggerFactory.getLogger(ScheduleUnit.class);
     private final long createdTime = System.currentTimeMillis();
 
     private final String scheduleUnitKey;
@@ -39,14 +38,18 @@ public class ScheduleUnit {
     ////////////////////////////////////////////////////////////////////////////////
 
     public boolean start(Job job) {
-        if (job == null) { return false; }
+        if (job == null) {
+            return false;
+        }
         job.setScheduleUnitKey(scheduleUnitKey);
         jobKeyList.add(job.getName());
         return jobScheduler.schedule(job);
     }
 
     public void stop(Job job) {
-        if (job == null) { return; }
+        if (job == null) {
+            return;
+        }
         job.setScheduleUnitKey(null);
         jobKeyList.remove(job.getName());
         jobScheduler.cancel(job);
