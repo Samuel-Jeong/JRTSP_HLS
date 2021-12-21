@@ -1,7 +1,5 @@
 package com.rtsp.module.netty.module;
 
-import com.rtsp.config.ConfigManager;
-import com.rtsp.service.AppInstance;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.*;
@@ -9,6 +7,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.config.ConfigManager;
+import com.rtsp.module.netty.handler.RtcpChannelHandler;
+import com.rtsp.service.AppInstance;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -40,7 +41,7 @@ public class RtcpNettyChannel { // > UDP
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public void run(String ip, int port) {
+    public void run (String ip, int port) {
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
         int nioThreadCount = configManager.getStreamThreadPoolSize();
         int sendBufSize = configManager.getSendBufSize();
@@ -60,7 +61,7 @@ public class RtcpNettyChannel { // > UDP
                     protected void initChannel(NioDatagramChannel socketChannel) {
                         final ChannelPipeline pipeline = socketChannel.pipeline();
                         pipeline.addLast(
-                                new rtsp.module.netty.handler.RtcpChannelHandler(
+                                new RtcpChannelHandler(
                                         rtspUnitId,
                                         ip,
                                         port
@@ -74,7 +75,7 @@ public class RtcpNettyChannel { // > UDP
      * @fn public void stop()
      * @brief Netty Channel 을 종료하는 함수
      */
-    public void stop() {
+    public void stop () {
         if (group != null) {
             group.shutdownGracefully();
         }
@@ -89,7 +90,7 @@ public class RtcpNettyChannel { // > UDP
      * @fn public Channel openChannel(String ip, int port)
      * @brief Netty Server Channel 을 생성하는 함수
      */
-    public Channel openChannel(String ip, int port) {
+    public Channel openChannel (String ip, int port) {
         if (serverChannel != null) {
             logger.warn("Channel is already opened.");
             return null;
@@ -113,7 +114,6 @@ public class RtcpNettyChannel { // > UDP
             return channelFuture.channel();
         } catch (Exception e) {
             logger.warn("Channel is interrupted. (address={}:{})", ip, port, e);
-            Thread.currentThread().interrupt();
             return null;
         }
     }
@@ -122,13 +122,14 @@ public class RtcpNettyChannel { // > UDP
      * @fn public void closeChannel()
      * @brief Netty Server Channel 을 닫는 함수
      */
-    public void closeChannel() {
+    public void closeChannel ( ) {
         if (serverChannel == null) {
             logger.warn("Channel is already closed.");
             return;
         }
 
         serverChannel.close();
+        serverChannel = null;
         logger.debug("Channel is closed.");
     }
 

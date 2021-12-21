@@ -35,7 +35,7 @@ public class StreamerChannelHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        logger.warn("({}) StreamerChannelHandler.Exception. (cause={})", id, cause.toString());
+        logger.warn("({}) StreamerChannelHandler.Exception (cause={})", id, cause.toString());
     }
 
 }

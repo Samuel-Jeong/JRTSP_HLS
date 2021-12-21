@@ -2,21 +2,21 @@
 
 <configuration scan="true" scanPeriod="2 seconds">
 
-    <property name="LOGS_ABSOLUTE_PATH" value="${HOME}/rtsp_server/logs" />
+    <property name="LOGS_ABSOLUTE_PATH" value="../logs" />
 
-<!--    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">-->
-<!--        <layout class="ch.qos.logback.classic.PatternLayout">-->
-<!--            <pattern>[%d{yyyy-MM-dd HH:mm:ss.SSS}][%-5p] [%t] %m - \(%F:%L\)%n</pattern>-->
-<!--        </layout>-->
-<!--    </appender>-->
+    <!--    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">-->
+    <!--        <layout class="ch.qos.logback.classic.PatternLayout">-->
+    <!--            <pattern>[%d{yyyy-MM-dd HH:mm:ss.SSS}][%-5p] [%t] %m - \(%F:%L\)%n</pattern>-->
+    <!--        </layout>-->
+    <!--    </appender>-->
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOGS_ABSOLUTE_PATH}/VoipPhone.log</file>
+        <file>${LOGS_ABSOLUTE_PATH}/jrtsp.log</file>
         <encoder>
             <pattern>[%d{yyyy-MM-dd HH:mm:ss.SSS}][%-5p] [%t] %m - \(%F:%L\)%n</pattern>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOGS_ABSOLUTE_PATH}/VoipPhone.log.%d{yyyyMMdd}.%i.log</fileNamePattern>
+            <fileNamePattern>${LOGS_ABSOLUTE_PATH}/jrtsp.log.%d{yyyyMMdd}.%i.log</fileNamePattern>
             <maxFileSize>1000MB</maxFileSize>
             <maxHistory>30</maxHistory>
             <totalSizeCap>20GB</totalSizeCap>

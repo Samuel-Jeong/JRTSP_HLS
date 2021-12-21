@@ -14,32 +14,42 @@ import java.io.IOException;
  */
 public class ConfigManager {
 
+    private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
+
+    private Ini ini = null;
+
     // Section String
     public static final String SECTION_COMMON = "COMMON"; // COMMON Section 이름
     public static final String SECTION_FFMPEG = "FFMPEG"; // FFMPEG Section 이름
     public static final String SECTION_NETWORK = "NETWORK"; // NETWORK Section 이름
     public static final String SECTION_HLS = "HLS"; // HLS Section 이름
     public static final String SECTION_REGISTER = "REGISTER"; // REGISTER Section 이름
+
     // Field String
     public static final String FIELD_SEND_BUF_SIZE = "SEND_BUF_SIZE";
     public static final String FIELD_RECV_BUF_SIZE = "RECV_BUF_SIZE";
+
     public static final String FIELD_FFMPEG_PATH = "FFMPEG_PATH";
     public static final String FIELD_FFPROBE_PATH = "FFPROBE_PATH";
+
     public static final String FIELD_STREAM_THREAD_POOL_SIZE = "STREAM_THREAD_POOL_SIZE";
     public static final String FIELD_LOCAL_LISTEN_IP = "LOCAL_LISTEN_IP";
     public static final String FIELD_LOCAL_RTSP_REGISTER_LISTEN_PORT = "LOCAL_RTSP_REGISTER_LISTEN_PORT";
     public static final String FIELD_LOCAL_RTSP_LISTEN_PORT = "LOCAL_RTSP_LISTEN_PORT";
     public static final String FIELD_LOCAL_RTCP_LISTEN_PORT = "LOCAL_RTCP_LISTEN_PORT";
     public static final String FIELD_TARGET_IP = "TARGET_IP";
+    public static final String FIELD_TARGET_RTP_PORT_MIN = "TARGET_RTP_PORT_MIN";
+    public static final String FIELD_TARGET_RTP_PORT_MAX = "TARGET_RTP_PORT_MAX";
+
     public static final String FIELD_HLS_LIST_SIZE = "HLS_LIST_SIZE";
     public static final String FIELD_HLS_TIME = "HLS_TIME";
     public static final String FIELD_DELETE_M3U8 = "DELETE_M3U8";
     public static final String FIELD_DELETE_TS = "DELETE_TS";
-    private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
+
     private static final String FIELD_REALM = "REALM";
     private static final String FIELD_MAGIC_COOKIE = "MAGIC_COOKIE";
     private static final String FIELD_HASH_KEY = "HASH_KEY";
-    private Ini ini = null;
+
     // COMMON
     private int sendBufSize = 0;
     private int recvBufSize = 0;
@@ -55,6 +65,8 @@ public class ConfigManager {
     private int localRtspListenPort = 0;
     private int localRtcpListenPort = 0;
     private String targetIp = null;
+    private int targetRtpPortMin = 0;
+    private int targetRtpPortMax = 0;
 
     // HLS
     private int hlsListSize = 0;
@@ -70,9 +82,9 @@ public class ConfigManager {
     ////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * @param configPath Config 파일 경로 이름
      * @fn public AuditConfig(String configPath)
      * @brief AuditConfig 생성자 함수
+     * @param configPath Config 파일 경로 이름
      */
     public ConfigManager(String configPath) {
         File iniFile = new File(configPath);
@@ -169,6 +181,20 @@ public class ConfigManager {
             return;
         }
 
+        this.targetRtpPortMin = Integer.parseInt(getIniValue(SECTION_NETWORK, FIELD_TARGET_RTP_PORT_MIN));
+        if (this.targetRtpPortMin <= 0) {
+            return;
+        }
+
+        this.targetRtpPortMax = Integer.parseInt(getIniValue(SECTION_NETWORK, FIELD_TARGET_RTP_PORT_MAX));
+        if (this.targetRtpPortMax <= 0) {
+            return;
+        }
+
+        if (targetRtpPortMin > targetRtpPortMax) {
+            return;
+        }
+
         logger.debug("Load [{}] config...(OK)", SECTION_NETWORK);
     }
 
@@ -208,14 +234,14 @@ public class ConfigManager {
     ////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * @param section Section
-     * @param key     Key
-     * @return 성공 시 value, 실패 시 null 반환
      * @fn private String getIniValue(String section, String key)
      * @brief INI 파일에서 지정한 section 과 key 에 해당하는 value 를 가져오는 함수
+     * @param section Section
+     * @param key Key
+     * @return 성공 시 value, 실패 시 null 반환
      */
     private String getIniValue(String section, String key) {
-        String value = ini.get(section, key);
+        String value = ini.get(section,key);
         if (value == null) {
             logger.warn("[ {} ] \" {} \" is null.", section, key);
             ServiceManager.getInstance().stop();
@@ -229,11 +255,11 @@ public class ConfigManager {
     }
 
     /**
-     * @param section Section
-     * @param key     Key
-     * @param value   Value
      * @fn public void setIniValue(String section, String key, String value)
      * @brief INI 파일에 새로운 value 를 저장하는 함수
+     * @param section Section
+     * @param key Key
+     * @param value Value
      */
     public void setIniValue(String section, String key, String value) {
         try {
@@ -314,5 +340,13 @@ public class ConfigManager {
 
     public String getHashKey() {
         return hashKey;
+    }
+
+    public int getTargetRtpPortMin() {
+        return targetRtpPortMin;
+    }
+
+    public int getTargetRtpPortMax() {
+        return targetRtpPortMax;
     }
 }

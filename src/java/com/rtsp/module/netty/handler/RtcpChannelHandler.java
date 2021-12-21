@@ -1,4 +1,4 @@
-package rtsp.module.netty.handler;
+package com.rtsp.module.netty.handler;
 
 import com.rtsp.module.RtspManager;
 import com.rtsp.module.base.RtspUnit;

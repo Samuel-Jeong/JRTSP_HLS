@@ -1,17 +1,18 @@
 package com.rtsp.service.scheduler.schedule.unit;
 
-import com.rtsp.service.scheduler.job.Job;
-import com.rtsp.service.scheduler.schedule.handler.JobScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.service.scheduler.job.Job;
+import com.rtsp.service.scheduler.schedule.handler.JobScheduler;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class ScheduleUnit {
 
-    public static final int DEFAULT_THREAD_COUNT = 5;
     private static final Logger logger = LoggerFactory.getLogger(ScheduleUnit.class);
+
+    public static final int DEFAULT_THREAD_COUNT = 5;
     private final long createdTime = System.currentTimeMillis();
 
     private final String scheduleUnitKey;
@@ -38,18 +39,14 @@ public class ScheduleUnit {
     ////////////////////////////////////////////////////////////////////////////////
 
     public boolean start(Job job) {
-        if (job == null) {
-            return false;
-        }
+        if (job == null) { return false; }
         job.setScheduleUnitKey(scheduleUnitKey);
         jobKeyList.add(job.getName());
         return jobScheduler.schedule(job);
     }
 
     public void stop(Job job) {
-        if (job == null) {
-            return;
-        }
+        if (job == null) { return; }
         job.setScheduleUnitKey(null);
         jobKeyList.remove(job.getName());
         jobScheduler.cancel(job);

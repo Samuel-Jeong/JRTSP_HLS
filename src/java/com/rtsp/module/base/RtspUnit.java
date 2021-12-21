@@ -6,6 +6,7 @@ import com.rtsp.module.Streamer;
 import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.module.netty.module.RtcpNettyChannel;
 import com.rtsp.module.netty.module.RtspNettyChannel;
+import com.rtsp.module.sdp.base.Sdp;
 import com.rtsp.service.AppInstance;
 import com.rtsp.service.ResourceManager;
 import org.slf4j.Logger;
@@ -22,15 +23,24 @@ public class RtspUnit {
     private static final Logger logger = LoggerFactory.getLogger(RtspUnit.class);
 
     private final String rtspUnitId; // ID of the RTSP session by client
+    private long sessionId; // ID of the session
+
+    private int congestionLevel = 0;
+
     private final RtspNettyChannel rtspChannel;
     private final RtcpNettyChannel rtcpChannel;
-    private final RtspFsmManager rtspFsmManager = new RtspFsmManager();
-    private final String rtspStateUnitId;
-    private int congestionLevel = 0;
-    //
     private int serverPort = 0;
+
     // TODO: Must manage the streamers
     private Streamer streamer = null;
+    //
+
+    private final RtspFsmManager rtspFsmManager = new RtspFsmManager();
+    private final String rtspStateUnitId;
+
+    private Sdp sdp = null;
+
+    private boolean isRegistered = false;
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,28 +57,28 @@ public class RtspUnit {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public static String getPureFileName(String uri) {
-        if (uri.startsWith("rtsp")) {
-            String curFileName = uri;
-            String rtspStr = curFileName.substring(
-                    curFileName.lastIndexOf("rtsp:") + 8
-            );
+    public boolean isRegistered() {
+        return isRegistered;
+    }
 
-            curFileName = rtspStr.substring(
-                    rtspStr.indexOf("/")
-            );
+    public void setRegistered(boolean registered) {
+        isRegistered = registered;
+    }
 
-            if (curFileName.charAt(curFileName.length() - 1) == '/') {
-                curFileName = curFileName.substring(
-                        0,
-                        curFileName.length() - 1
-                );
-            }
+    public long getSessionId() {
+        return sessionId;
+    }
 
-            return curFileName;
-        }
+    public void setSessionId(long sessionId) {
+        this.sessionId = sessionId;
+    }
 
-        return uri;
+    public Sdp getSdp() {
+        return sdp;
+    }
+
+    public void setSdp(Sdp sdp) {
+        this.sdp = sdp;
     }
 
     public StateManager getStateManager() {
@@ -87,7 +97,7 @@ public class RtspUnit {
         this.streamer = streamer;
     }
 
-    public String getRtspId() {
+    public String getRtspUnitId() {
         return rtspUnitId;
     }
 
@@ -111,8 +121,6 @@ public class RtspUnit {
         return serverPort;
     }
 
-    /////////////////////////////////////////////////////////////////////
-
     public void setServerPort(int serverPort) {
         if (serverPort <= 0) {
             logger.warn("({}) RtspUnit serverPort is not set up. ({})", rtspUnitId, serverPort);
@@ -124,6 +132,32 @@ public class RtspUnit {
             ResourceManager.getInstance().restorePort(serverPort);
             logger.debug("({}) RtspUnit serverPort is set up. ({})", rtspUnitId, serverPort);
         }
+    }
+
+    /////////////////////////////////////////////////////////////////////
+
+    public static String getPureFileName(String uri) {
+        if (uri.startsWith("rtsp")) {
+            String curFileName = uri;
+            String rtspStr = curFileName.substring(
+                    curFileName.lastIndexOf("rtsp:") + 8
+            );
+
+            curFileName = rtspStr.substring(
+                    rtspStr.indexOf("/")
+            );
+
+            if (curFileName.charAt(curFileName.length() - 1) == '/') {
+                curFileName = curFileName.substring(
+                        0,
+                        curFileName.length() - 1
+                );
+            }
+
+            return curFileName;
+        }
+
+        return uri;
     }
 
 }

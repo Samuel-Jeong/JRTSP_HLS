@@ -1,9 +1,5 @@
 package com.rtsp.module.netty.module;
 
-import com.rtsp.config.ConfigManager;
-import com.rtsp.module.Streamer;
-import com.rtsp.module.netty.handler.RtspChannelHandler;
-import com.rtsp.service.AppInstance;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.*;
@@ -14,6 +10,10 @@ import io.netty.handler.codec.rtsp.RtspDecoder;
 import io.netty.handler.codec.rtsp.RtspEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.config.ConfigManager;
+import com.rtsp.module.Streamer;
+import com.rtsp.module.netty.handler.RtspChannelHandler;
+import com.rtsp.service.AppInstance;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -30,17 +30,21 @@ public class RtspNettyChannel { // > TCP
     private static final Logger logger = LoggerFactory.getLogger(RtspNettyChannel.class);
 
     private final String rtspUnitId;
+
+    private EventLoopGroup bossGroup = new NioEventLoopGroup();
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
+    private ServerBootstrap b;
+
+    /*메시지 수신용 채널 */
+    private Channel serverChannel;
+
     private final String listenIp;
     private final int listenPort;
+
     /* Streamer Map */
     /* Key: To MDN, value: Streamer */
     private final HashMap<String, Streamer> messageSenderMap = new HashMap<>();
     private final ReentrantLock messageSenderLock = new ReentrantLock();
-    private EventLoopGroup bossGroup = new NioEventLoopGroup();
-    private ServerBootstrap b;
-    /*메시지 수신용 채널 */
-    private Channel serverChannel;
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +56,7 @@ public class RtspNettyChannel { // > TCP
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public void run(String ip, int port) {
+    public void run (String ip, int port) {
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
         int listenRtcpPort = configManager.getLocalRtcpListenPort();
         int recvBufSize = configManager.getRecvBufSize();
@@ -86,7 +90,7 @@ public class RtspNettyChannel { // > TCP
      * @fn public void stop()
      * @brief Netty Channel 을 종료하는 함수
      */
-    public void stop() {
+    public void stop () {
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
     }
@@ -100,7 +104,7 @@ public class RtspNettyChannel { // > TCP
      * @fn public Channel openChannel(String ip, int port)
      * @brief Netty Server Channel 을 생성하는 함수
      */
-    public Channel openChannel(String ip, int port) {
+    public Channel openChannel (String ip, int port) {
         if (serverChannel != null) {
             logger.warn("Channel is already opened.");
             return null;
@@ -124,7 +128,6 @@ public class RtspNettyChannel { // > TCP
             return channelFuture.channel();
         } catch (Exception e) {
             logger.warn("Channel is interrupted. (address={}:{})", ip, port, e);
-            Thread.currentThread().interrupt();
             return null;
         }
     }
@@ -133,13 +136,14 @@ public class RtspNettyChannel { // > TCP
      * @fn public void closeChannel()
      * @brief Netty Server Channel 을 닫는 함수
      */
-    public void closeChannel() {
+    public void closeChannel ( ) {
         if (serverChannel == null) {
             logger.warn("Channel is already closed.");
             return;
         }
 
         serverChannel.close();
+        serverChannel = null;
         logger.debug("Channel is closed.");
     }
 
@@ -154,32 +158,32 @@ public class RtspNettyChannel { // > TCP
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public Streamer addStreamer(String key) {
+    public Streamer addStreamer (String sessionId) {
         try {
             messageSenderLock.lock();
 
-            if (messageSenderMap.get(key) != null) {
-                logger.warn("Streamer is already connected. (key={})", key);
+            if (messageSenderMap.get(sessionId) != null) {
+                logger.warn("Streamer is already exist. (key={})", sessionId);
                 return null;
             }
 
             Streamer streamer = new Streamer(
-                    key,
+                    sessionId,
                     listenIp,
                     listenPort
             ).init();
 
             if (streamer == null) {
-                logger.warn("Fail to create Streamer. (key={})", key);
+                logger.warn("Fail to create Streamer. (key={})", sessionId);
                 return null;
             }
 
             messageSenderMap.putIfAbsent(
-                    key,
+                    sessionId,
                     streamer
             );
 
-            return messageSenderMap.get(key);
+            return messageSenderMap.get(sessionId);
         } catch (Exception e) {
             Thread.currentThread().interrupt();
             return null;
@@ -188,7 +192,7 @@ public class RtspNettyChannel { // > TCP
         }
     }
 
-    public void deleteStreamer(String key) {
+    public void deleteStreamer (String key) {
         try {
             messageSenderLock.lock();
 
@@ -208,7 +212,7 @@ public class RtspNettyChannel { // > TCP
         }
     }
 
-    public void deleteAllStreamers() {
+    public void deleteAllStreamers () {
         try {
             messageSenderLock.lock();
 
@@ -251,22 +255,13 @@ public class RtspNettyChannel { // > TCP
     }
 
     /**
-     * @param key Streamer key
-     * @return 성공 시 Streamer 객체, 실패 시 null 반환
      * @fn public Streamer getStreamer (String key)
      * @brief 지정한 key 에 해당하는 Streamer 를 반환하는 함수
+     * @param key Streamer key
+     * @return 성공 시 Streamer 객체, 실패 시 null 반환
      */
-    public Streamer getStreamer(String key) {
-        try {
-            messageSenderLock.lock();
-
-            return messageSenderMap.get(key);
-        } catch (Exception e) {
-            logger.warn("Fail to get the messageSender. (key={})", key, e);
-            return null;
-        } finally {
-            messageSenderLock.unlock();
-        }
+    public Streamer getStreamer (String key) {
+        return messageSenderMap.get(key);
     }
 
     public void startStreaming(String key) {

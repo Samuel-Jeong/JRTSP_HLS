@@ -45,50 +45,6 @@ public class FfmpegManager {
         //Nothing
     }
 
-    public static MediaPlaylist createPlayList() {
-        MediaPlaylist mediaPlaylist = MediaPlaylist.builder()
-                .version(3)
-                .targetDuration(2)
-                .mediaSequence(0)
-                .ongoing(false)
-                .addMediaSegments(
-                        MediaSegment.builder()
-                                .duration(9.009)
-                                .uri("http://media.example.com/first.ts")
-                                .build(),
-                        MediaSegment.builder()
-                                .duration(9.009)
-                                .uri("http://media.example.com/second.ts")
-                                .build(),
-                        MediaSegment.builder()
-                                .duration(3.003)
-                                .uri("http://media.example.com/third.ts")
-                                .build())
-                .build();
-
-        MediaPlaylistParser parser = new MediaPlaylistParser();
-        logger.debug("{}", parser.writePlaylistAsString(mediaPlaylist));
-
-        return mediaPlaylist;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-
-    public static void updatePlayList(String m3u8Path, int mediaSequence) {
-        try {
-            MediaPlaylistParser parser = new MediaPlaylistParser(ParsingMode.STRICT);
-            MediaPlaylist playlist = parser.readPlaylist(Paths.get(m3u8Path));
-            MediaPlaylist updated = MediaPlaylist.builder()
-                    .from(playlist)
-                    .version(3)
-                    .mediaSequence(mediaSequence)
-                    .build();
-            logger.debug("{}", parser.writePlaylistAsString(updated));
-        } catch (Exception e) {
-            logger.warn("FfmpegManager.updatePlayList.Exception", e);
-        }
-    }
-
     public double getFileTime(String srcFilePath) {
         try {
             IsoFile isoFile = new IsoFile(srcFilePath);
@@ -98,6 +54,8 @@ public class FfmpegManager {
             return 0;
         }
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     public void convertMp4ToM3u8(String srcFilePath, String destTotalFilePath, long fileTime, long startTime, long endTime) {
         String destFilePathOnly = destTotalFilePath.substring(
@@ -252,6 +210,48 @@ public class FfmpegManager {
             }
         }*/
         //
+    }
+
+    public static MediaPlaylist createPlayList() {
+        MediaPlaylist mediaPlaylist = MediaPlaylist.builder()
+                .version(3)
+                .targetDuration(2)
+                .mediaSequence(0)
+                .ongoing(false)
+                .addMediaSegments(
+                        MediaSegment.builder()
+                                .duration(9.009)
+                                .uri("http://media.example.com/first.ts")
+                                .build(),
+                        MediaSegment.builder()
+                                .duration(9.009)
+                                .uri("http://media.example.com/second.ts")
+                                .build(),
+                        MediaSegment.builder()
+                                .duration(3.003)
+                                .uri("http://media.example.com/third.ts")
+                                .build())
+                .build();
+
+        MediaPlaylistParser parser = new MediaPlaylistParser();
+        logger.debug("{}", parser.writePlaylistAsString(mediaPlaylist));
+
+        return mediaPlaylist;
+    }
+
+    public static void updatePlayList(String m3u8Path, int mediaSequence) {
+        try {
+            MediaPlaylistParser parser = new MediaPlaylistParser(ParsingMode.STRICT);
+            MediaPlaylist playlist = parser.readPlaylist(Paths.get(m3u8Path));
+            MediaPlaylist updated = MediaPlaylist.builder()
+                    .from(playlist)
+                    .version(3)
+                    .mediaSequence(mediaSequence)
+                    .build();
+            logger.debug("{}", parser.writePlaylistAsString(updated));
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.updatePlayList.Exception", e);
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////

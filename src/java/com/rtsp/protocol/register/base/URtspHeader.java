@@ -103,11 +103,11 @@ public class URtspHeader {
         return timeStamp;
     }
 
-    public int getBodyLength() {
-        return bodyLength;
-    }
-
     public void setBodyLength(int bodyLength) {
         this.bodyLength = bodyLength;
+    }
+
+    public int getBodyLength() {
+        return bodyLength;
     }
 }

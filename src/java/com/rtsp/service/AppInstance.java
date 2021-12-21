@@ -20,7 +20,7 @@ public class AppInstance {
         // Nothing
     }
 
-    public static AppInstance getInstance() {
+    public static AppInstance getInstance ( ) {
         if (instance == null) {
             instance = new AppInstance();
         }
@@ -29,35 +29,35 @@ public class AppInstance {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    public int getInstanceId() {
+    public int getInstanceId ( ) {
         return instanceId;
     }
 
-    public void setInstanceId(int instanceId) {
+    public void setInstanceId (int instanceId) {
         this.instanceId = instanceId;
     }
 
-    public String getConfigPath() {
+    public String getConfigPath ( ) {
         return configPath;
     }
 
-    public void setConfigPath(String configPath) {
+    public void setConfigPath (String configPath) {
         this.configPath = configPath;
     }
 
-    public int getCpuUsage() {
+    public int getCpuUsage ( ) {
         return cpuUsage;
     }
 
-    public void setCpuUsage(int cpuUsage) {
+    public void setCpuUsage (int cpuUsage) {
         this.cpuUsage = cpuUsage;
     }
 
-    public int getMemUsage() {
+    public int getMemUsage ( ) {
         return memUsage;
     }
 
-    public void setMemUsage(int memUsage) {
+    public void setMemUsage (int memUsage) {
         this.memUsage = memUsage;
     }
 

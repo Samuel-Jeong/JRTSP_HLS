@@ -5,24 +5,16 @@ import java.nio.ByteOrder;
 
 public class ByteUtil {
 
-    /**
-     * The maximum number of bytes in a UDP packet.
-     */
+    /** The maximum number of bytes in a UDP packet. */
     public static final int MAX_UDP_PACKET_SIZE = 65537;
 
-    /**
-     * Number of bytes in a Java short.
-     */
+    /** Number of bytes in a Java short. */
     public static final int NUM_BYTES_IN_SHORT = 2;
 
-    /**
-     * Number of bytes in a Java int.
-     */
+    /** Number of bytes in a Java int. */
     public static final int NUM_BYTES_IN_INT = 4;
 
-    /**
-     * Number of bytes in a Java long.
-     */
+    /** Number of bytes in a Java long. */
     public static final int NUM_BYTES_IN_LONG = 8;
 
     private static final long[] maxValueCache = new long[64];
@@ -185,7 +177,7 @@ public class ByteUtil {
 
     public static String byteArrayToHex(byte[] a) {
         StringBuilder sb = new StringBuilder();
-        for (final byte b : a) {
+        for(final byte b: a) {
             sb.append(String.format("%02x ", b & 0xff));
         }
         return sb.toString();

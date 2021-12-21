@@ -1,11 +1,11 @@
 package com.rtsp.module;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.rtsp.fsm.RtspState;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.service.ResourceManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,8 +17,10 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class RtspManager {
 
-    public static final String RTSP_RES_SESSION = "Session";
     private static final Logger logger = LoggerFactory.getLogger(RtspManager.class);
+
+    public static final String RTSP_RES_SESSION = "Session";
+
     private static RtspManager rtspManager = null;
 
     private final HashMap<String, RtspUnit> rtspUnitMap = new HashMap<>();
@@ -30,7 +32,7 @@ public class RtspManager {
         // Nothing
     }
 
-    public static RtspManager getInstance() {
+    public static RtspManager getInstance ( ) {
         if (rtspManager == null) {
             rtspManager = new RtspManager();
         }
@@ -46,7 +48,7 @@ public class RtspManager {
             rtspUnit.getStateManager().addStateUnit(
                     rtspUnit.getRtspStateUnitId(),
                     rtspUnit.getStateManager().getStateHandler(RtspState.NAME).getName(),
-                    RtspState.INIT,
+                    RtspState.IDLE,
                     null
             );
 
@@ -58,6 +60,7 @@ public class RtspManager {
         }
     }
 
+    // Unregister 요청받거나 Register 요청 거부할 때 사용
     public void closeRtspUnit(String rtspUnitId) {
         try {
             rtspUnitMapLock.lock();
@@ -79,6 +82,8 @@ public class RtspManager {
             if (port > 0) {
                 ResourceManager.getInstance().restorePort(port);
             }
+
+            rtspUnitMap.remove(rtspUnitId);
         } catch (Exception e) {
             logger.warn("Fail to close the rtsp unit. (id={})", rtspUnitId, e);
         } finally {
@@ -116,6 +121,8 @@ public class RtspManager {
                 if (port > 0) {
                     ResourceManager.getInstance().restorePort(port);
                 }
+
+                rtspUnitMap.remove(rtspUnit.getRtspUnitId());
             }
         } catch (Exception e) {
             logger.warn("Fail to close all rtsp units.", e);

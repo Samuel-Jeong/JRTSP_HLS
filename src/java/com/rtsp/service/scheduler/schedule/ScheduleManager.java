@@ -1,9 +1,9 @@
 package com.rtsp.service.scheduler.schedule;
 
-import com.rtsp.service.scheduler.job.Job;
-import com.rtsp.service.scheduler.schedule.unit.ScheduleUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.service.scheduler.job.Job;
+import com.rtsp.service.scheduler.schedule.unit.ScheduleUnit;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class ScheduleManager {
 
     private static final Logger logger = LoggerFactory.getLogger(ScheduleManager.class);
-
+    
     private static ScheduleManager scheduleManager = null;
 
     private final HashMap<String, ScheduleUnit> scheduleUnitMap = new HashMap<>();
@@ -23,7 +23,7 @@ public class ScheduleManager {
     public ScheduleManager() {
         // ignore
     }
-
+    
     public static ScheduleManager getInstance() {
         if (scheduleManager == null) {
             scheduleManager = new ScheduleManager();
@@ -38,7 +38,7 @@ public class ScheduleManager {
         return scheduleUnitMap.size();
     }
 
-    public Map<String, ScheduleUnit> getCloneCallMap() {
+    public Map<String, ScheduleUnit> getCloneCallMap( ) {
         HashMap<String, ScheduleUnit> cloneMap;
 
         try {
@@ -46,7 +46,7 @@ public class ScheduleManager {
 
             cloneMap = (HashMap<String, ScheduleUnit>) scheduleUnitMap.clone();
         } catch (Exception e) {
-            logger.warn("Fail to clone the schedule unit map.", e);
+            logger.warn("Fail to clone the schedule unit map.",  e);
             cloneMap = scheduleUnitMap;
         } finally {
             scheduleUnitMapLock.unlock();
@@ -80,9 +80,7 @@ public class ScheduleManager {
     }
 
     private void removeScheduleUnit(String key) {
-        if (key == null) {
-            return;
-        }
+        if (key == null) { return; }
 
         try {
             scheduleUnitMapLock.lock();
@@ -96,9 +94,7 @@ public class ScheduleManager {
     }
 
     public ScheduleUnit getScheduleUnit(String key) {
-        if (key == null) {
-            return null;
-        }
+        if (key == null) { return null; }
 
         return scheduleUnitMap.get(key);
     }
@@ -123,9 +119,7 @@ public class ScheduleManager {
     }
 
     public boolean startJob(String scheduleUnitKey, Job job) {
-        if (scheduleUnitKey == null) {
-            return false;
-        }
+        if (scheduleUnitKey == null) { return false; }
 
         ScheduleUnit scheduleUnit = getScheduleUnit(scheduleUnitKey);
         if (scheduleUnit == null) {
@@ -155,9 +149,7 @@ public class ScheduleManager {
     }
 
     public int getActiveJobNumber(String scheduleUnitKey) {
-        if (scheduleUnitKey == null) {
-            return 0;
-        }
+        if (scheduleUnitKey == null) { return 0; }
 
         ScheduleUnit scheduleUnit = getScheduleUnit(scheduleUnitKey);
         if (scheduleUnit == null) {

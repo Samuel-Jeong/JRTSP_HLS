@@ -1,8 +1,5 @@
 package com.rtsp.module;
 
-import com.rtsp.config.ConfigManager;
-import com.rtsp.module.netty.handler.StreamerChannelHandler;
-import com.rtsp.service.AppInstance;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -14,6 +11,9 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.config.ConfigManager;
+import com.rtsp.module.netty.handler.StreamerChannelHandler;
+import com.rtsp.service.AppInstance;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -30,28 +30,35 @@ import java.util.concurrent.atomic.AtomicLong;
 public class Streamer {
 
     private static final Logger logger = LoggerFactory.getLogger(Streamer.class);
+
+    private String clientUserAgent = null;
+
+    private NioEventLoopGroup group = null;
     private final Bootstrap b = new Bootstrap();
+
     private final String sessionId; /* Streamer id */
+    private Channel channel; /* 메시지 송신용 채널 */
+
     private final String listenIp;
     private final int listenPort;
-    private final Random random = new Random();
-    private final AtomicBoolean isPaused = new AtomicBoolean(false);
-    private final AtomicLong pausedTime = new AtomicLong(0);
-    private final StopWatch stopWatch = new StopWatch();
-    private String clientUserAgent = null;
-    private NioEventLoopGroup group = null;
-    private Channel channel; /* 메시지 송신용 채널 */
     private String destIp = null;
     private int destPort = 0; // rtp destination port
     private int rtcpDestPort = 0; // rtcp destination port
+
     private VideoStream video = null;
     private String uri = null;
     private File m3u8File = null;
+    private final Random random = new Random();
     private int ssrc;
     private int curSeqNum;
     private int curTimeStamp;
+
     private List<MediaSegment> mediaSegmentList = null;
     private String m3u8PathOnly = null;
+
+    private final AtomicBoolean isPaused = new AtomicBoolean(false);
+    private final AtomicLong pausedTime = new AtomicLong(0);
+    private final StopWatch stopWatch = new StopWatch();
 
     /////////////////////////////////////////////////////////////////////
 
@@ -89,7 +96,7 @@ public class Streamer {
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
                 .handler(new ChannelInitializer<NioDatagramChannel>() {
                     @Override
-                    public void initChannel(final NioDatagramChannel ch) {
+                    public void initChannel (final NioDatagramChannel ch) {
                         final ChannelPipeline pipeline = ch.pipeline();
                         pipeline.addLast(
                                 //new DefaultEventExecutorGroup(1),
@@ -102,7 +109,7 @@ public class Streamer {
         return this;
     }
 
-    public void start() {
+    public void start () {
         try {
             if (m3u8File == null) {
                 String destFilePath = video.getResultM3U8FilePath();
@@ -135,7 +142,7 @@ public class Streamer {
         this.clientUserAgent = clientUserAgent;
     }
 
-    public boolean isPaused() {
+    public boolean isPaused () {
         return isPaused.get();
     }
 
@@ -143,16 +150,16 @@ public class Streamer {
         return stopWatch;
     }
 
-    public long getPausedTime() {
-        return pausedTime.get();
-    }
-
-    public void setPausedTime(long pausedTime) {
+    public void setPausedTime (long pausedTime) {
         this.pausedTime.set(pausedTime);
         logger.debug("({}) Set paused time. ({})", sessionId, pausedTime);
     }
 
-    public void pause() {
+    public long getPausedTime () {
+        return pausedTime.get();
+    }
+
+    public void pause () {
         if (channel == null) {
             return;
         }
@@ -161,7 +168,7 @@ public class Streamer {
         logger.debug("({}) Streamer is paused. ({})", sessionId, this);
     }
 
-    public void stop() {
+    public void stop () {
         if (channel != null) {
             channel.closeFuture();
             channel.close();
@@ -183,7 +190,7 @@ public class Streamer {
         }
     }
 
-    public void finish() {
+    public void finish () {
         stop();
 
         if (AppInstance.getInstance().getConfigManager().isDeleteM3u8()) {
@@ -323,9 +330,9 @@ public class Streamer {
     }
 
     /**
-     * @return Streamer 활성화 여부를 반환
      * @fn public boolean isActive()
      * @brief Streamer 활성화 여부를 반환하는 함수
+     * @return Streamer 활성화 여부를 반환
      */
     public boolean isActive() {
         if (channel != null) {
@@ -336,11 +343,11 @@ public class Streamer {
     }
 
     /**
-     * @param buf  ByteBuf
-     * @param ip   Destination IP
-     * @param port Destination Port
      * @fn public void send(ByteBuf buf, String ip, int port)
      * @brief 연결된 채널로 지정한 데이터를 송신하는 함수
+     * @param buf ByteBuf
+     * @param ip Destination IP
+     * @param port Destination Port
      */
     public void send(ByteBuf buf, String ip, int port) {
         if (buf == null || ip == null || port <= 0) {

@@ -1,5 +1,7 @@
 package com.rtsp.protocol.register;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.rtsp.protocol.base.ByteUtil;
 import com.rtsp.protocol.register.base.URtspHeader;
 import com.rtsp.protocol.register.base.URtspMessageType;
@@ -47,9 +49,9 @@ public class RegisterRtspUnitRes {
             byte[] reasonLengthByteData = new byte[ByteUtil.NUM_BYTES_IN_INT];
             System.arraycopy(data, index, reasonLengthByteData, 0, reasonLengthByteData.length);
             reasonLength = ByteUtil.bytesToInt(reasonLengthByteData, true);
-            index += reasonLengthByteData.length;
-
             if (reasonLength > 0) {
+                index += reasonLengthByteData.length;
+
                 byte[] reasonByteData = new byte[reasonLength];
                 System.arraycopy(data, index, reasonByteData, 0, reasonByteData.length);
                 reason = new String(reasonByteData, StandardCharsets.UTF_8);
@@ -60,21 +62,19 @@ public class RegisterRtspUnitRes {
             this.realm = null;
             this.statusCode = 0;
         }
-
     }
 
     public RegisterRtspUnitRes(String magicCookie, URtspMessageType messageType, int seqNumber, long timeStamp, String realm, int statusCode) {
-        int bodyLength = realm.length() + ByteUtil.NUM_BYTES_IN_INT;
+        int bodyLength = realm.length() + ByteUtil.NUM_BYTES_IN_INT * 3;
 
         this.uRtspHeader = new URtspHeader(magicCookie, messageType, seqNumber, timeStamp, bodyLength);
-        this.realmLength = realm.length();
+        this.realmLength = realm.getBytes(StandardCharsets.UTF_8).length;
         this.realm = realm;
         this.statusCode = statusCode;
     }
 
-    public byte[] getByteData() {
-        byte[] data = new byte[URtspHeader.U_RTSP_HEADER_SIZE + realm.length() + reasonLength + ByteUtil.NUM_BYTES_IN_INT * 3];
-
+    public byte[] getByteData(){
+        byte[] data = new byte[URtspHeader.U_RTSP_HEADER_SIZE + this.uRtspHeader.getBodyLength()];
         int index = 0;
 
         byte[] headerByteData = this.uRtspHeader.getByteData();
@@ -82,25 +82,27 @@ public class RegisterRtspUnitRes {
         index += headerByteData.length;
 
         byte[] realmLengthByteData = ByteUtil.intToBytes(realmLength, true);
-        System.arraycopy(data, index, realmLengthByteData, 0, realmLengthByteData.length);
+        System.arraycopy(realmLengthByteData, 0, data, index, realmLengthByteData.length);
         index += realmLengthByteData.length;
 
         byte[] realmByteData = realm.getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(data, index, realmByteData, 0, realmByteData.length);
+        System.arraycopy(realmByteData, 0, data, index, realmByteData.length);
         index += realmByteData.length;
 
         byte[] statusCodeByteData = ByteUtil.intToBytes(statusCode, true);
-        System.arraycopy(data, index, statusCodeByteData, 0, statusCodeByteData.length);
+        System.arraycopy(statusCodeByteData, 0, data, index, statusCodeByteData.length);
         index += statusCodeByteData.length;
 
         byte[] reasonLengthByteData = ByteUtil.intToBytes(reasonLength, true);
-        System.arraycopy(data, index, reasonLengthByteData, 0, reasonLengthByteData.length);
+        System.arraycopy(reasonLengthByteData, 0, data, index, reasonLengthByteData.length);
 
         if (reasonLength > 0 && reason.length() > 0) {
-            index += reasonLengthByteData.length;
-
             byte[] reasonByteData = reason.getBytes(StandardCharsets.UTF_8);
-            System.arraycopy(data, index, reasonByteData, 0, reasonByteData.length);
+            byte[] newData = new byte[data.length];
+            System.arraycopy(data, 0, newData, 0, data.length);
+            index += reasonLengthByteData.length;
+            System.arraycopy(reasonByteData, 0, newData, index, reasonByteData.length);
+            data = newData;
         }
 
         return data;
@@ -123,9 +125,15 @@ public class RegisterRtspUnitRes {
     }
 
     public void setReason(String reason) {
-        this.reasonLength = reason.length();
+        this.reasonLength = reason.getBytes(StandardCharsets.UTF_8).length;
         this.reason = reason;
 
-        uRtspHeader.setBodyLength(realm.length() + ByteUtil.NUM_BYTES_IN_INT + reasonLength);
+        uRtspHeader.setBodyLength(uRtspHeader.getBodyLength() + reasonLength);
+    }
+
+    @Override
+    public String toString() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        return gson.toJson(this);
     }
 }

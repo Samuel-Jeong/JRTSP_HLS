@@ -1,8 +1,8 @@
 package com.rtsp.service.scheduler.schedule.handler;
 
-import com.rtsp.service.scheduler.job.Job;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.service.scheduler.job.Job;
 
 public class JobScheduler {
 

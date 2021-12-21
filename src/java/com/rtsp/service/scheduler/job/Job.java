@@ -1,10 +1,10 @@
 package com.rtsp.service.scheduler.job;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.rtsp.service.scheduler.schedule.ScheduleManager;
 import com.rtsp.service.scheduler.schedule.unit.FutureScheduler;
 import com.rtsp.service.scheduler.schedule.unit.ScheduleUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -85,6 +85,10 @@ public abstract class Job implements Runnable {
         return totalRunCount;
     }
 
+    public void setCurRemainRunCount(int count) {
+        curRemainRunCount.set(count);
+    }
+
     public int incCurRemainRunCount() {
         return curRemainRunCount.incrementAndGet();
     }
@@ -95,10 +99,6 @@ public abstract class Job implements Runnable {
 
     public int getCurRemainRunCount() {
         return curRemainRunCount.get();
-    }
-
-    public void setCurRemainRunCount(int count) {
-        curRemainRunCount.set(count);
     }
 
     public String getName() {
