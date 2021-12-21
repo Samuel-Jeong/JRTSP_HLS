@@ -66,17 +66,8 @@ public class RtspManager {
             rtspUnitMapLock.lock();
 
             RtspUnit rtspUnit = getRtspUnit(rtspUnitId);
-            NettyChannelManager.getInstance().deleteRtspChannel(
-                    rtspUnit.getRtspChannel().getListenIp()
-                            + "_" +
-                            rtspUnit.getRtspChannel().getListenPort()
-            );
-
-            NettyChannelManager.getInstance().deleteRtcpChannel(
-                    rtspUnit.getRtcpChannel().getListenIp()
-                            + "_" +
-                            rtspUnit.getRtcpChannel().getListenPort()
-            );
+            NettyChannelManager.getInstance().deleteRtspChannel(rtspUnitId);
+            NettyChannelManager.getInstance().deleteRtcpChannel(rtspUnitId);
 
             int port = rtspUnit.getServerPort();
             if (port > 0) {
@@ -105,17 +96,8 @@ public class RtspManager {
                     return;
                 }
 
-                NettyChannelManager.getInstance().deleteRtspChannel(
-                        rtspUnit.getRtspChannel().getListenIp()
-                                + "_" +
-                                rtspUnit.getRtspChannel().getListenPort()
-                );
-
-                NettyChannelManager.getInstance().deleteRtcpChannel(
-                        rtspUnit.getRtcpChannel().getListenIp()
-                                + "_" +
-                                rtspUnit.getRtcpChannel().getListenPort()
-                );
+                NettyChannelManager.getInstance().deleteRtspChannel(rtspUnit.getRtspUnitId());
+                NettyChannelManager.getInstance().deleteRtcpChannel(rtspUnit.getRtspUnitId());
 
                 int port = rtspUnit.getServerPort();
                 if (port > 0) {

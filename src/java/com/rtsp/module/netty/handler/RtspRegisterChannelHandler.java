@@ -13,6 +13,10 @@ import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.module.netty.module.RtspRegisterNettyChannel;
 import com.rtsp.protocol.register.RegisterRtspUnitReq;
 import com.rtsp.protocol.register.RegisterRtspUnitRes;
+import com.rtsp.protocol.register.UnRegisterRtspUnitReq;
+import com.rtsp.protocol.register.UnRegisterRtspUnitRes;
+import com.rtsp.protocol.register.base.URtspHeader;
+import com.rtsp.protocol.register.base.URtspMessageType;
 import com.rtsp.service.AppInstance;
 
 import java.nio.charset.StandardCharsets;
@@ -60,49 +64,76 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
 
             ConfigManager configManager = AppInstance.getInstance().getConfigManager();
 
-            RegisterRtspUnitReq registerRtspUnitReq = new RegisterRtspUnitReq(data);
-            logger.debug("[>] {} ({})", registerRtspUnitReq, readBytes);
+            URtspHeader uRtspHeader = new URtspHeader(data);
+            if (uRtspHeader.getMessageType() == URtspMessageType.REGISTER) {
+                RegisterRtspUnitReq registerRtspUnitReq = new RegisterRtspUnitReq(data);
+                logger.debug("[>] {} ({})", registerRtspUnitReq, readBytes);
 
-            String rtspUnitId = registerRtspUnitReq.getId();
-            String nonce = registerRtspUnitReq.getNonce();
+                String rtspUnitId = registerRtspUnitReq.getId();
+                String nonce = registerRtspUnitReq.getNonce();
 
-            RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(rtspUnitId);
-            if (rtspUnit == null) { // NOT AUTHORIZED
-                RegisterRtspUnitRes registerRtspUnitRes = new RegisterRtspUnitRes(
-                        configManager.getMagicCookie(),
-                        registerRtspUnitReq.getURtspHeader().getMessageType(),
-                        registerRtspUnitReq.getURtspHeader().getSeqNumber(),
-                        registerRtspUnitReq.getURtspHeader().getTimeStamp(),
-                        configManager.getRealm(),
-                        RegisterRtspUnitRes.NOT_ACCEPTED
-                );
-                registerRtspUnitRes.setReason("NOT_AUTHORIZED");
+                RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(rtspUnitId);
+                if (rtspUnit == null) { // NOT AUTHORIZED
+                    RegisterRtspUnitRes registerRtspUnitRes = new RegisterRtspUnitRes(
+                            configManager.getMagicCookie(),
+                            registerRtspUnitReq.getURtspHeader().getMessageType(),
+                            registerRtspUnitReq.getURtspHeader().getSeqNumber(),
+                            registerRtspUnitReq.getURtspHeader().getTimeStamp(),
+                            configManager.getRealm(),
+                            RegisterRtspUnitRes.NOT_ACCEPTED
+                    );
+                    registerRtspUnitRes.setReason("NOT_AUTHORIZED");
 
-                // RTSP ID 등록
-                RtspManager.getInstance().openRtspUnit(
-                        rtspUnitId,
-                        configManager.getLocalListenIp(),
-                        configManager.getLocalRtspListenPort()
-                );
+                    // RTSP ID 등록
+                    RtspManager.getInstance().openRtspUnit(
+                            rtspUnitId,
+                            configManager.getLocalListenIp(),
+                            configManager.getLocalRtspListenPort()
+                    );
 
-                rtspRegisterNettyChannel.sendResponse(datagramPacket.sender().getAddress().getHostAddress(), registerRtspUnitReq.getListenPort(), registerRtspUnitRes);
-            } else {
-                RegisterRtspUnitRes registerRtspUnitRes;
+                    rtspRegisterNettyChannel.sendResponse(datagramPacket.sender().getAddress().getHostAddress(), registerRtspUnitReq.getListenPort(), registerRtspUnitRes);
+                } else {
+                    RegisterRtspUnitRes registerRtspUnitRes;
 
-                if (!rtspUnit.isRegistered()) {
-                    // 1) Check nonce
-                    // 2) If ok, open rtsp channel
-                    // 3) If not, reject
-                    MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-                    messageDigest.update(configManager.getRealm().getBytes(StandardCharsets.UTF_8));
-                    messageDigest.update(configManager.getHashKey().getBytes(StandardCharsets.UTF_8));
-                    byte[] a1 = messageDigest.digest();
-                    messageDigest.reset();
-                    messageDigest.update(a1);
+                    if (!rtspUnit.isRegistered()) {
+                        // 1) Check nonce
+                        // 2) If ok, open rtsp channel
+                        // 3) If not, reject
+                        MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+                        messageDigest.update(configManager.getRealm().getBytes(StandardCharsets.UTF_8));
+                        messageDigest.update(configManager.getHashKey().getBytes(StandardCharsets.UTF_8));
+                        byte[] a1 = messageDigest.digest();
+                        messageDigest.reset();
+                        messageDigest.update(a1);
 
-                    String curNonce = new String(messageDigest.digest());
-                    if (curNonce.equals(nonce)) {
-                        // RTSP Channel OPEN (New RtspUnit)
+                        String curNonce = new String(messageDigest.digest());
+                        if (curNonce.equals(nonce)) {
+                            // RTSP Channel OPEN (New RtspUnit)
+                            registerRtspUnitRes = new RegisterRtspUnitRes(
+                                    configManager.getMagicCookie(),
+                                    registerRtspUnitReq.getURtspHeader().getMessageType(),
+                                    registerRtspUnitReq.getURtspHeader().getSeqNumber(),
+                                    registerRtspUnitReq.getURtspHeader().getTimeStamp(),
+                                    configManager.getRealm(),
+                                    RegisterRtspUnitRes.SUCCESS
+                            );
+                            rtspUnit.setRegistered(true);
+                        } else {
+                            registerRtspUnitRes = new RegisterRtspUnitRes(
+                                    configManager.getMagicCookie(),
+                                    registerRtspUnitReq.getURtspHeader().getMessageType(),
+                                    registerRtspUnitReq.getURtspHeader().getSeqNumber(),
+                                    registerRtspUnitReq.getURtspHeader().getTimeStamp(),
+                                    configManager.getRealm(),
+                                    RegisterRtspUnitRes.NOT_ACCEPTED
+                            );
+                            registerRtspUnitRes.setReason("WRONG_NONCE");
+
+                            // RTSP ID 등록 해제
+                            RtspManager.getInstance().closeRtspUnit(rtspUnitId);
+                            rtspUnit.setRegistered(false);
+                        }
+                    } else {
                         registerRtspUnitRes = new RegisterRtspUnitRes(
                                 configManager.getMagicCookie(),
                                 registerRtspUnitReq.getURtspHeader().getMessageType(),
@@ -111,37 +142,47 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                                 configManager.getRealm(),
                                 RegisterRtspUnitRes.SUCCESS
                         );
-                        rtspUnit.setRegistered(true);
-                    } else {
-                        registerRtspUnitRes = new RegisterRtspUnitRes(
-                                configManager.getMagicCookie(),
-                                registerRtspUnitReq.getURtspHeader().getMessageType(),
-                                registerRtspUnitReq.getURtspHeader().getSeqNumber(),
-                                registerRtspUnitReq.getURtspHeader().getTimeStamp(),
-                                configManager.getRealm(),
-                                RegisterRtspUnitRes.NOT_ACCEPTED
-                        );
-                        registerRtspUnitRes.setReason("WRONG_NONCE");
-
-                        // RTSP ID 등록 해제
-                        RtspManager.getInstance().closeRtspUnit(rtspUnitId);
-                        rtspUnit.setRegistered(false);
                     }
-                } else {
-                    registerRtspUnitRes = new RegisterRtspUnitRes(
-                            configManager.getMagicCookie(),
-                            registerRtspUnitReq.getURtspHeader().getMessageType(),
-                            registerRtspUnitReq.getURtspHeader().getSeqNumber(),
-                            registerRtspUnitReq.getURtspHeader().getTimeStamp(),
-                            configManager.getRealm(),
-                            RegisterRtspUnitRes.SUCCESS
+
+                    rtspRegisterNettyChannel.sendResponse(
+                            datagramPacket.sender().getAddress().getHostAddress(),
+                            registerRtspUnitReq.getListenPort(),
+                            registerRtspUnitRes
                     );
+                }
+            } else if (uRtspHeader.getMessageType() == URtspMessageType.UNREGISTER) {
+                UnRegisterRtspUnitReq unRegisterRtspUnitReq = new UnRegisterRtspUnitReq(data);
+                logger.debug("[>] {} ({})", unRegisterRtspUnitReq, readBytes);
+
+                String rtspUnitId = unRegisterRtspUnitReq.getId();
+                RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(rtspUnitId);
+                UnRegisterRtspUnitRes unRegisterRtspUnitRes;
+                if (rtspUnit == null) {
+                    unRegisterRtspUnitRes = new UnRegisterRtspUnitRes(
+                            configManager.getMagicCookie(),
+                            unRegisterRtspUnitReq.getURtspHeader().getMessageType(),
+                            unRegisterRtspUnitReq.getURtspHeader().getSeqNumber(),
+                            unRegisterRtspUnitReq.getURtspHeader().getTimeStamp(),
+                            UnRegisterRtspUnitRes.NOT_ACCEPTED
+                    );
+                } else {
+                    unRegisterRtspUnitRes = new UnRegisterRtspUnitRes(
+                            configManager.getMagicCookie(),
+                            unRegisterRtspUnitReq.getURtspHeader().getMessageType(),
+                            unRegisterRtspUnitReq.getURtspHeader().getSeqNumber(),
+                            unRegisterRtspUnitReq.getURtspHeader().getTimeStamp(),
+                            UnRegisterRtspUnitRes.SUCCESS
+                    );
+
+                    // RTSP ID 등록 해제
+                    RtspManager.getInstance().closeRtspUnit(rtspUnitId);
+                    rtspUnit.setRegistered(false);
                 }
 
                 rtspRegisterNettyChannel.sendResponse(
                         datagramPacket.sender().getAddress().getHostAddress(),
-                        registerRtspUnitReq.getListenPort(),
-                        registerRtspUnitRes
+                        unRegisterRtspUnitReq.getListenPort(),
+                        unRegisterRtspUnitRes
                 );
             }
         } catch (Exception e) {

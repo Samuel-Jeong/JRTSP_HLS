@@ -1,6 +1,8 @@
 package com.rtsp.module.base;
 
 import com.fsm.StateManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.rtsp.fsm.RtspFsmManager;
 import com.rtsp.module.Streamer;
 import com.rtsp.module.netty.NettyChannelManager;
@@ -9,8 +11,6 @@ import com.rtsp.module.netty.module.RtspNettyChannel;
 import com.rtsp.module.sdp.base.Sdp;
 import com.rtsp.service.AppInstance;
 import com.rtsp.service.ResourceManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
 

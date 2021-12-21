@@ -1,7 +1,7 @@
 package com.rtsp.service.scheduler.schedule.handler;
 
-import com.rtsp.service.scheduler.job.Job;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
+import com.rtsp.service.scheduler.job.Job;
 
 import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;

@@ -10,39 +10,27 @@ import com.rtsp.protocol.register.exception.URtspException;
 
 import java.nio.charset.StandardCharsets;
 
-public class RegisterRtspUnitRes extends URtspMessage {
+public class UnRegisterRtspUnitRes extends URtspMessage {
 
-    private static final Logger logger = LoggerFactory.getLogger(RegisterRtspUnitRes.class);
+    private static final Logger logger = LoggerFactory.getLogger(UnRegisterRtspUnitRes.class);
 
     public static final int SUCCESS = 200;
     public static final int NOT_ACCEPTED = 400;
 
     private final URtspHeader uRtspHeader;
 
-    private final int realmLength;
-    private final String realm;
     private final int statusCode;
     private int reasonLength;
     private String reason = "";
 
-    public RegisterRtspUnitRes(byte[] data) throws URtspException {
-        if (data.length >= URtspHeader.U_RTSP_HEADER_SIZE + ByteUtil.NUM_BYTES_IN_INT * 3) {
+    public UnRegisterRtspUnitRes(byte[] data) throws URtspException {
+        if (data.length >= URtspHeader.U_RTSP_HEADER_SIZE + ByteUtil.NUM_BYTES_IN_INT * 2) {
             int index = 0;
 
             byte[] headerByteData = new byte[URtspHeader.U_RTSP_HEADER_SIZE];
             System.arraycopy(data, index, headerByteData, 0, headerByteData.length);
             this.uRtspHeader = new URtspHeader(headerByteData);
             index += headerByteData.length;
-
-            byte[] realmLengthByteData = new byte[ByteUtil.NUM_BYTES_IN_INT];
-            System.arraycopy(data, index, realmLengthByteData, 0, realmLengthByteData.length);
-            realmLength = ByteUtil.bytesToInt(realmLengthByteData, true);
-            index += realmLengthByteData.length;
-
-            byte[] realmByteData = new byte[realmLength];
-            System.arraycopy(data, index, realmByteData, 0, realmByteData.length);
-            realm = new String(realmByteData, StandardCharsets.UTF_8);
-            index += realmByteData.length;
 
             byte[] statusCodeByteData = new byte[ByteUtil.NUM_BYTES_IN_INT];
             System.arraycopy(data, index, statusCodeByteData, 0, statusCodeByteData.length);
@@ -61,18 +49,14 @@ public class RegisterRtspUnitRes extends URtspMessage {
             }
         } else {
             this.uRtspHeader = null;
-            this.realmLength = 0;
-            this.realm = null;
             this.statusCode = 0;
         }
     }
 
-    public RegisterRtspUnitRes(String magicCookie, URtspMessageType messageType, int seqNumber, long timeStamp, String realm, int statusCode) {
-        int bodyLength = realm.length() + ByteUtil.NUM_BYTES_IN_INT * 3;
+    public UnRegisterRtspUnitRes(String magicCookie, URtspMessageType messageType, int seqNumber, long timeStamp, int statusCode) {
+        int bodyLength = ByteUtil.NUM_BYTES_IN_INT * 2;
 
         this.uRtspHeader = new URtspHeader(magicCookie, messageType, seqNumber, timeStamp, bodyLength);
-        this.realmLength = realm.getBytes(StandardCharsets.UTF_8).length;
-        this.realm = realm;
         this.statusCode = statusCode;
     }
 
@@ -84,14 +68,6 @@ public class RegisterRtspUnitRes extends URtspMessage {
         byte[] headerByteData = this.uRtspHeader.getByteData();
         System.arraycopy(headerByteData, 0, data, index, headerByteData.length);
         index += headerByteData.length;
-
-        byte[] realmLengthByteData = ByteUtil.intToBytes(realmLength, true);
-        System.arraycopy(realmLengthByteData, 0, data, index, realmLengthByteData.length);
-        index += realmLengthByteData.length;
-
-        byte[] realmByteData = realm.getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(realmByteData, 0, data, index, realmByteData.length);
-        index += realmByteData.length;
 
         byte[] statusCodeByteData = ByteUtil.intToBytes(statusCode, true);
         System.arraycopy(statusCodeByteData, 0, data, index, statusCodeByteData.length);
@@ -114,10 +90,6 @@ public class RegisterRtspUnitRes extends URtspMessage {
 
     public URtspHeader getURtspHeader() {
         return uRtspHeader;
-    }
-
-    public String getRealm() {
-        return realm;
     }
 
     public int getStatusCode() {

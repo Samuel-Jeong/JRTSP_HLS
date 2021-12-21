@@ -16,7 +16,7 @@ public class URtspHeader {
     private int bodyLength = 0;                     // 4 bytes
 
     public URtspHeader(byte[] data) throws URtspException {
-        if (data.length == U_RTSP_HEADER_SIZE) {
+        if (data.length >= U_RTSP_HEADER_SIZE) {
             int index = 0;
 
             byte[] magicCookieByteData = new byte[2];

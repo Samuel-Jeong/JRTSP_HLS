@@ -11,7 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.rtsp.config.ConfigManager;
 import com.rtsp.module.netty.handler.RtspRegisterChannelHandler;
-import com.rtsp.protocol.register.RegisterRtspUnitRes;
+import com.rtsp.protocol.register.base.URtspMessage;
 import com.rtsp.service.AppInstance;
 
 import java.net.InetAddress;
@@ -97,20 +97,20 @@ public class RtspRegisterNettyChannel {
         logger.debug("Success to stop the rtsp register channel. (ip={}, port={})", ip, port);
     }
 
-    public void sendResponse(String targetIp, short targetPort, RegisterRtspUnitRes registerRtspUnitRes) {
-        if (targetIp == null || targetPort <= 0 || registerRtspUnitRes == null) {
+    public void sendResponse(String targetIp, short targetPort, URtspMessage uRtspMessage) {
+        if (targetIp == null || targetPort <= 0 || uRtspMessage == null) {
             return;
         }
 
         InetSocketAddress remoteAddress = new InetSocketAddress(targetIp, targetPort);
         channel.writeAndFlush(
                 new DatagramPacket(
-                        Unpooled.copiedBuffer(registerRtspUnitRes.getByteData()),
+                        Unpooled.copiedBuffer(uRtspMessage.getByteData()),
                         remoteAddress
                 )
         );
 
-        logger.debug("[<] {} ({})", registerRtspUnitRes, registerRtspUnitRes.getByteData().length);
+        logger.debug("[<] {} ({})", uRtspMessage, uRtspMessage.getByteData().length);
     }
 
     public String getIp() {
