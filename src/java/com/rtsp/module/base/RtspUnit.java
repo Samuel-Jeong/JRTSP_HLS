@@ -23,7 +23,7 @@ public class RtspUnit {
     private static final Logger logger = LoggerFactory.getLogger(RtspUnit.class);
 
     private final String rtspUnitId; // ID of the RTSP session by client
-    private long sessionId; // ID of the session
+    private long sessionId = 0; // ID of the session
 
     private int congestionLevel = 0;
 
@@ -42,6 +42,10 @@ public class RtspUnit {
 
     private boolean isRegistered = false;
 
+    private double fileTime = 0.0;
+    private double startTime = 0.0;
+    private double endTime = 0.0;
+
     ////////////////////////////////////////////////////////////////////////////////
 
     public RtspUnit(String rtspUnitId, String listenIp, int listenPort) {
@@ -56,6 +60,30 @@ public class RtspUnit {
     }
 
     ////////////////////////////////////////////////////////////////////////////////
+
+    public double getFileTime() {
+        return fileTime;
+    }
+
+    public void setFileTime(double fileTime) {
+        this.fileTime = fileTime;
+    }
+
+    public double getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(double startTime) {
+        this.startTime = startTime;
+    }
+
+    public double getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(double endTime) {
+        this.endTime = endTime;
+    }
 
     public boolean isRegistered() {
         return isRegistered;

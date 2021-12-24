@@ -83,10 +83,7 @@ public class RtcpPacket {
     // Constructor from bit stream
     public RtcpPacket(byte[] packet) {
     	header = new byte[HEADER_SIZE];
-    	body = new byte[BODY_SIZE];
-
         System.arraycopy(packet, 0, header, 0, HEADER_SIZE);
-        System.arraycopy(packet, HEADER_SIZE, body, 0, BODY_SIZE);
 
     	// Parse header fields
         version = (header[0] & 0xFF) >> 6;
@@ -95,10 +92,23 @@ public class RtcpPacket {
         ssrc = (header[7] & 0xFF) + ((header[6] & 0xFF) << 8) + ((header[5] & 0xFF) << 16) + ((header[4] & 0xFF) << 24);
 
     	// Parse body fields
-    	ByteBuffer bb = ByteBuffer.wrap(body); // big-endian by default
-    	fractionLost = bb.getFloat();
-    	cumLost = bb.getInt();
-    	highSeqNb = bb.getInt();
+
+        int bodyLength = packet.length - HEADER_SIZE;
+        body = new byte[bodyLength];
+        System.arraycopy(packet, HEADER_SIZE, body, 0, bodyLength);
+        ByteBuffer bb = ByteBuffer.wrap(body); // big-endian by default
+        if (bodyLength < BODY_SIZE) {
+            if (bodyLength == 4) {
+                fractionLost = bb.getFloat(); // 4
+            } else if (bodyLength == 8) {
+                fractionLost = bb.getFloat(); // 4
+                cumLost = bb.getInt(); // 4
+            } else if (bodyLength == 12) {
+                fractionLost = bb.getFloat(); // 4
+                cumLost = bb.getInt(); // 4
+                highSeqNb = bb.getInt(); // 4
+            }
+        }
     }
 
     public int getPacket(byte[] packet)

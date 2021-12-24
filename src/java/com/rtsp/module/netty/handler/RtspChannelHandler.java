@@ -88,17 +88,18 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead (ChannelHandlerContext ctx, Object msg) {
         try {
-            RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(rtspUnitId);
-            if (rtspUnit == null) {
-                logger.warn("({}) Fail to get the rtsp unit. RtspUnit is null.", name);
-                return;
-            }
-            StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
-            String curState = rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId()).getCurState();
-
             if (msg instanceof DefaultHttpRequest) {
                 DefaultHttpRequest req = (DefaultHttpRequest) msg;
                 DefaultFullHttpResponse res = new DefaultFullHttpResponse(RtspVersions.RTSP_1_0,  RtspResponseStatuses.NOT_FOUND);
+
+                RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(rtspUnitId);
+                if (rtspUnit == null) {
+                    logger.warn("({}) Fail to get the rtsp unit. RtspUnit is null.", name);
+                    sendFailResponse(name, null, null, ctx, req, res, null, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
+                    return;
+                }
+                StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
+                String curState = rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId()).getCurState();
 
                 logger.debug("({}) ({}) () Request: {}", name, rtspUnit.getRtspUnitId(), req);
 
@@ -106,7 +107,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                 if (req.method() == RtspMethods.OPTIONS) {
                     logger.debug("({}) ({}) () < OPTIONS", name, rtspUnit.getRtspUnitId());
 
-                    if (curState.equals(RtspState.IDLE)) {
+                    if (curState.equals(RtspState.REGISTER)) {
                         rtspStateHandler.fire(
                                 RtspEvent.OPTIONS,
                                 rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
@@ -115,6 +116,10 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         String sessionId = req.headers().get("Session");
                         if (sessionId != null) {
                             rtspUnit.setSessionId(Long.parseLong(sessionId));
+                        } else {
+                            long newSessionId = random.nextInt(1000000);
+                            logger.warn("({}) ({}) () SessionId is null. New sessionId is created. ({})", name, rtspUnit.getRtspUnitId(), newSessionId);
+                            rtspUnit.setSessionId(newSessionId);
                         }
 
                         res.setStatus(RtspResponseStatuses.OK);
@@ -141,6 +146,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                             port = ResourceManager.getInstance().takePort();
                             if (port == -1) {
                                 logger.warn("({}) ({}) () Fail to process describe method. Port is full.", name, rtspUnit.getRtspUnitId());
+                                rtspStateHandler.fire(
+                                        RtspEvent.DESCRIBE_FAIL,
+                                        rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                                );
+                                sendFailResponse(name, rtspUnit, null, ctx, req, res, null, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                                 return;
                             }
                         }
@@ -243,6 +253,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                                 if (streamer == null) {
                                     logger.warn("({}) ({}) ({}) Streamer is not defined. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), curSessionId, listenIp, listenRtspPort);
+                                    rtspStateHandler.fire(
+                                            RtspEvent.SETUP_FAIL,
+                                            rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                                    );
+                                    sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.NOT_ACCEPTABLE);
                                     return;
                                 }
 
@@ -274,15 +289,10 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                         if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.INTERLEAVED))) {
                             logger.debug("({}) ({}) () < Interleaved {}, clientPortString={}", name, rtspUnit.getRtspUnitId(), req.method(), clientPortString);
-                        /*res.headers().add(
-                                "Transport",
-                                "RTP/AVP;unicast;" + clientPortString + ";ssrc=" + streamer.getSsrc()
-                        );*/
-                            res.setStatus(RtspResponseStatuses.NOT_ACCEPTABLE);
-                            sendResponse(name, rtspUnit, streamer, ctx, req, res);
-                            logger.debug("({}) ({}) ({}) Setup to stream the media. (rtpDestIp={}, rtpDestPort={}, rtcpDestPort={})",
+                            logger.debug("({}) ({}) ({}) Fail to setup to stream the media. TCP RTP Connection is detected. Unsupported... (rtpDestIp={}, rtpDestPort={}, rtcpDestPort={})",
                                     name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(), streamer.getRtcpDestPort()
                             );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.NOT_ACCEPTABLE);
                         } else if (clientPortString.startsWith(String.valueOf(RtspHeaderValues.CLIENT_PORT))) {
                             //
                             String rtpDesPortString = clientPortString.substring(
@@ -296,6 +306,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 rtcpDestPort = Integer.parseInt(rtcpDesPortString);
                                 if (rtcpDestPort <= 0) {
                                     logger.warn("({}) ({}) () Fail to parse rtcp destination port. (transportHeaderContent={})", name, rtspUnit.getRtspUnitId(), transportHeaderContent);
+                                    rtspStateHandler.fire(
+                                            RtspEvent.SETUP_FAIL,
+                                            rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                                    );
+                                    sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.NOT_ACCEPTABLE);
                                     return;
                                 }
 
@@ -308,6 +323,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                             int rtpDestPort = Integer.parseInt(rtpDesPortString);
                             if (rtpDestPort <= 0) {
                                 logger.warn("({}) ({}) () Fail to parse rtp destination port. (transportHeaderContent={})", name, rtspUnit.getRtspUnitId(), transportHeaderContent);
+                                rtspStateHandler.fire(
+                                        RtspEvent.SETUP_FAIL,
+                                        rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                                );
+                                sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.NOT_ACCEPTABLE);
                                 return;
                             }
                             //
@@ -345,9 +365,17 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 );
                             } else {
                                 logger.warn("({}) ({}) ({}) Fail to send the response for SETUP. (rtpDestPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), streamer.getDestPort());
+                                rtspStateHandler.fire(
+                                        RtspEvent.SETUP_FAIL,
+                                        rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                                );
                             }
                         } else {
                             logger.warn("({}) ({}) () Unknown transport header content. ({})", name, rtspUnit.getRtspUnitId(), clientPortString);
+                            rtspStateHandler.fire(
+                                    RtspEvent.SETUP_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
                         }
                     }
                 }
@@ -356,12 +384,20 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                     logger.debug("({}) ({}) () < PLAY", name, rtspUnit.getRtspUnitId());
 
                     if (curState.equals(RtspState.SETUP) || curState.equals(RtspState.PAUSE)) {
+                        rtspStateHandler.fire(
+                                RtspEvent.PLAY,
+                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                        );
+
                         // CHECK REQUEST
                         String curSessionId = req.headers().get(RtspHeaderNames.SESSION);
                         if (curSessionId == null) {
                             logger.warn("({}) ({}) () SessionId is null. Fail to process PLAY method. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), listenIp, listenRtspPort);
-                            res.setStatus(RtspResponseStatuses.NOT_ACCEPTABLE);
-                            sendResponse(name, rtspUnit, null, ctx, req, res);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, null, RtspResponseStatuses.NOT_ACCEPTABLE);
                             return;
                         }
                         logger.debug("({}) ({}) () Current sessionId is [{}]. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), curSessionId, listenIp, listenRtspPort);
@@ -370,23 +406,21 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         Streamer streamer = NettyChannelManager.getInstance().getStreamer(rtspUnitId, curSessionId, listenIp, listenRtspPort);
                         if (streamer == null) {
                             logger.warn("({}) ({}) ({}) Streamer is not defined. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), curSessionId, listenIp, listenRtspPort);
-                            res.setStatus(RtspResponseStatuses.INTERNAL_SERVER_ERROR);
-                            res.headers().add(
-                                    RtspHeaderNames.SESSION,
-                                    curSessionId
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
                             );
-                            sendResponse(name, rtspUnit, null, ctx, req, res);
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
 
                         if (!curSessionId.equals(streamer.getSessionId())) {
                             logger.warn("({}) ({}) ({}) SessionId is unmatched. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), curSessionId, listenIp, listenRtspPort);
-                            res.setStatus(RtspResponseStatuses.NOT_ACCEPTABLE);
-                            res.headers().add(
-                                    RtspHeaderNames.SESSION,
-                                    curSessionId
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
                             );
-                            sendResponse(name, rtspUnit, null, ctx, req, res);
+                            sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.NOT_ACCEPTABLE);
                             return;
                         }
                         //
@@ -404,9 +438,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                             }
 
                             npt1 = Double.parseDouble(nptString1);
+                            rtspUnit.setStartTime(npt1);
                             npt2 = 0;
                             if (nptString2 != null && !nptString2.isEmpty()) {
                                 npt2 = Double.parseDouble(nptString2);
+                                rtspUnit.setEndTime(npt2);
                             }
                             //
                         }
@@ -427,6 +463,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         int destPort = streamer.getDestPort();
                         if (destPort <= 0) {
                             logger.warn("({}) ({}) ({}) Fail to process the PLAY request. Destination port is wrong. (rtspUnit={}, destPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), rtspUnit, destPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
                         //
@@ -446,6 +487,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         FfmpegManager ffmpegManager = new FfmpegManager();
 
                         double fileTime = ffmpegManager.getFileTime(video.getMp4FileName());
+                        rtspUnit.setFileTime(fileTime);
                         String fileTimeString = String.format("%.3f", fileTime);
 
                         if (npt2 == 0) {
@@ -469,6 +511,12 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         );
 
                         if (m3u8ByteData.length == 0) {
+                            logger.warn("({}) ({}) ({}) Fail to process the PLAY request. Fail to get the m3u8 data. (rtspUnit={}, destPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), rtspUnit, destPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
                         //
@@ -488,31 +536,38 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                             logger.debug("({}) ({}) ({}) mediaSegmentList: {}", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), mediaSegmentList);
                             streamer.setMediaSegmentList(mediaSegmentList);
-
-                            rtspStateHandler.fire(
-                                    RtspEvent.PLAY,
-                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
-                            );
                         } else {
                             logger.warn("({}) ({}) ({}) Fail to stream the media. (rtpDestPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), destPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
                             sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
 
                         if (mediaSegmentList == null || mediaSegmentList.isEmpty()) {
                             logger.warn("({}) ({}) ({}) Media segment list is empty. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), listenIp, listenRtspPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
                             sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
 
-                        if (!streamer.isActive()) {
+                        /*if (!streamer.isActive()) {
                             logger.warn("({}) ({}) ({}) Streamer is not active or deleted. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), listenIp, listenRtspPort);
                             sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
-                        }
+                        }*/
 
                         if (npt2 > fileTime || npt2 < 0) {
                             logger.warn("({}) ({}) ({}) Wrong end time is detected. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), listenIp, listenRtspPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PLAY_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
                             sendFailResponse(name, rtspUnit, streamer, ctx, req, res, curSessionId, RtspResponseStatuses.NOT_ACCEPTABLE);
                             return;
                         }
@@ -559,6 +614,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 streamer.getDestIp(),
                                 streamer.getDestPort()
                         );
+
                         logger.debug("({}) ({}) ({}) << Send M3U8 (destIp={}, destPort={})\n{}(size={})",
                                 name, rtspUnit.getRtspUnitId(),
                                 streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(),
@@ -577,7 +633,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                             logger.debug("({}) ({}) ({}) Selected tsFileName: {}", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), tsFileName);
 
                             byte[] tsByteData = Files.readAllBytes(Paths.get(tsFileName));
-                            logger.debug("[START] [{}] : [{}]", tsFileName, tsByteData.length);
+                            logger.debug("[START] [{}] : [readByteSize: {}]", tsFileName, tsByteData.length);
 
                             int partitionValue = 188; // TS Packet Total byte : 188 (4(header) + 184(PES, Packetized Elementary Streams))
                             int totalLength = tsByteData.length;
@@ -654,6 +710,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         String curSessionId = req.headers().get(RtspHeaderNames.SESSION);
                         if (curSessionId == null) {
                             logger.warn("({}) ({}) () SessionId is null. Fail to process TEARDOWN method. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), listenIp, listenRtspPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.TEARDOWN_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, null, RtspResponseStatuses.NOT_ACCEPTABLE);
                             return;
                         }
                         logger.debug("({}) ({}) () Current sessionId is [{}]. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), curSessionId, listenIp, listenRtspPort);
@@ -661,15 +722,13 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         Streamer streamer = NettyChannelManager.getInstance().getStreamer(rtspUnitId, curSessionId, listenIp, listenRtspPort);
                         if (streamer == null) {
                             logger.warn("({}) ({}) () Streamer is not defined. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), listenIp, listenRtspPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.TEARDOWN_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
-                        //
-
-                        //
-                        rtspStateHandler.fire(
-                                RtspEvent.TEARDOWN,
-                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
-                        );
                         //
 
                         //
@@ -686,15 +745,15 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         logger.debug("({}) ({}) ({}) Finish to stream the media. All media segment is played.", name, rtspUnit.getRtspUnitId(), streamer.getSessionId());
                         //
 
+                        rtspStateHandler.fire(
+                                RtspEvent.TEARDOWN_OK,
+                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                        );
+
                         res.setStatus(RtspResponseStatuses.OK);
                         res.headers().add(
                                 RtspHeaderNames.SESSION,
                                 curSessionId
-                        );
-
-                        rtspStateHandler.fire(
-                                RtspEvent.IDLE,
-                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
                         );
 
                         sendResponse(name, rtspUnit, streamer, ctx, req, res);
@@ -714,6 +773,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         String curSessionId = req.headers().get(RtspHeaderNames.SESSION);
                         if (curSessionId == null) {
                             logger.warn("({}) ({}) () SessionId is null. Fail to process PAUSE method. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), listenIp, listenRtspPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PAUSE_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, null, RtspResponseStatuses.NOT_ACCEPTABLE);
                             return;
                         }
                         logger.debug("({}) ({}) () Current sessionId is [{}]. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), curSessionId, listenIp, listenRtspPort);
@@ -721,6 +785,11 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         Streamer streamer = NettyChannelManager.getInstance().getStreamer(rtspUnitId, curSessionId, listenIp, listenRtspPort);
                         if (streamer == null) {
                             logger.warn("({}) ({}) () Streamer is not defined. (listenIp={}, listenPort={})", name, rtspUnit.getRtspUnitId(), listenIp, listenRtspPort);
+                            rtspStateHandler.fire(
+                                    RtspEvent.PAUSE_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.INTERNAL_SERVER_ERROR);
                             return;
                         }
 
@@ -736,7 +805,26 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         //
 
                         streamer.getStopWatch().stop();
-                        streamer.setPausedTime(streamer.getStopWatch().getTime() / 1000);
+                        long realEndTime = streamer.getStopWatch().getTime() / 1000;
+                        streamer.setPausedTime(realEndTime);
+
+                        double curFileEndTime = rtspUnit.getEndTime();
+                        if (curFileEndTime <= 0) {
+                            curFileEndTime = rtspUnit.getFileTime();
+                        }
+
+                        if (realEndTime >= curFileEndTime) {
+                            logger.warn("({}) ({}) ({}) Fail to process PAUSE. EndTime is unmatched. (realEndTime={}, curFileEndTime={})",
+                                    name, rtspUnit.getRtspUnitId(), streamer.getSessionId(),
+                                    realEndTime, curFileEndTime
+                            );
+                            rtspStateHandler.fire(
+                                    RtspEvent.PAUSE_FAIL,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+                            sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.BAD_REQUEST);
+                            return;
+                        }
 
                         res.setStatus(RtspResponseStatuses.OK);
                         res.headers().add(
@@ -749,6 +837,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                 // 7) UNKNOWN
                 else {
                     logger.warn("({}) ({}) () < Unknown method: {}", name, rtspUnit.getRtspUnitId(), req.method());
+                    sendFailResponse(name, rtspUnit, null, ctx, req, res, null, RtspResponseStatuses.METHOD_NOT_ALLOWED);
                     ctx.write(res).addListener(ChannelFutureListener.CLOSE);
                 }
             }
@@ -758,11 +847,6 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
     }
 
     public static void sendResponse(String name, RtspUnit rtspUnit, Streamer streamer, ChannelHandlerContext ctx, DefaultHttpRequest req, FullHttpResponse res) {
-        if (rtspUnit == null) {
-            logger.warn("({}) ({}) () Fail to send response. RtspUnit or Streamer is null. (rtspUnit={}, streamer={})", name, req.method(), rtspUnit, streamer);
-            return;
-        }
-
         final String cSeq = req.headers().get("Cseq");
         if (cSeq != null) {
             res.headers().add("Cseq", cSeq);
@@ -776,16 +860,23 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
             sessionId = streamer.getSessionId();
         }
 
-        logger.debug("({}) ({}) ({}) Response: {}", name, rtspUnit.getRtspUnitId(), sessionId, res);
-        logger.debug("({}) ({}) ({}) > Send response. ({})", name, rtspUnit.getRtspUnitId(), sessionId, req.method());
+        String rtspUnitId = null;
+        if (rtspUnit != null) {
+            rtspUnitId = rtspUnit.getRtspUnitId();
+        }
+
+        logger.debug("({}) ({}) ({}) Response: {}", name, rtspUnitId, sessionId, res);
+        logger.debug("({}) ({}) ({}) > Send response. ({})", name, rtspUnitId, sessionId, req.method());
     }
 
     public void sendFailResponse(String name, RtspUnit rtspUnit, Streamer streamer, ChannelHandlerContext ctx, DefaultHttpRequest req, FullHttpResponse res, String curSessionId, HttpResponseStatus httpResponseStatus) {
         res.setStatus(httpResponseStatus);
-        res.headers().add(
-                RtspHeaderNames.SESSION,
-                curSessionId
-        );
+        if (curSessionId != null && curSessionId.length() > 0) {
+            res.headers().add(
+                    RtspHeaderNames.SESSION,
+                    curSessionId
+            );
+        }
         sendResponse(name, rtspUnit, streamer, ctx, req, res);
     }
 

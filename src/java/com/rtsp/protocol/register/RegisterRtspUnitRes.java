@@ -15,7 +15,7 @@ public class RegisterRtspUnitRes extends URtspMessage {
     private static final Logger logger = LoggerFactory.getLogger(RegisterRtspUnitRes.class);
 
     public static final int SUCCESS = 200;
-    public static final int NOT_ACCEPTED = 400;
+    public static final int NOT_AUTHORIZED = 401;
 
     private final URtspHeader uRtspHeader;
 

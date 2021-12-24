@@ -93,7 +93,7 @@ public class Streamer {
                 .option(ChannelOption.SO_RCVBUF, configManager.getRecvBufSize())
                 .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_REUSEADDR, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)
                 .handler(new ChannelInitializer<NioDatagramChannel>() {
                     @Override
                     public void initChannel (final NioDatagramChannel ch) {
@@ -119,16 +119,15 @@ public class Streamer {
             InetAddress address = InetAddress.getByName(destIp);
             ChannelFuture channelFuture = b.connect(address, destPort).sync();
             channelFuture.addListener(
-                    (ChannelFutureListener) future -> logger.debug("({}) Success to connect with remote peer. (ip={}, port={})", sessionId, destIp, destPort)
+                    (ChannelFutureListener) future -> logger.trace("({}) Success to connect with remote peer. (ip={}, port={})", sessionId, destIp, destPort)
             );
             channel = channelFuture.channel();
 
             if (isPaused.get()) {
                 isPaused.set(false);
+                setPausedTime(0);
             }
-
-            setPausedTime(0);
-            logger.debug("({}) Streamer is started. ({})", sessionId, this);
+            //logger.debug("({}) Streamer is started. ({})", sessionId, this);
         } catch (Exception e) {
             logger.warn("({}) Streamer.start.Exception", sessionId, e);
         }
@@ -152,7 +151,7 @@ public class Streamer {
 
     public void setPausedTime (long pausedTime) {
         this.pausedTime.set(pausedTime);
-        logger.debug("({}) Set paused time. ({})", sessionId, pausedTime);
+        //logger.debug("({}) Set paused time. ({})", sessionId, pausedTime);
     }
 
     public long getPausedTime () {
@@ -165,7 +164,7 @@ public class Streamer {
         }
 
         isPaused.set(true);
-        logger.debug("({}) Streamer is paused. ({})", sessionId, this);
+        //logger.debug("({}) Streamer is paused. ({})", sessionId, this);
     }
 
     public void stop () {
@@ -177,7 +176,7 @@ public class Streamer {
 
         isPaused.set(true);
         setPausedTime(0);
-        logger.debug("({}) Streamer is stopped. ({})", sessionId, this);
+        //logger.debug("({}) Streamer is stopped. ({})", sessionId, this);
     }
 
     private void removeFile(File file) {
@@ -336,6 +335,18 @@ public class Streamer {
      */
     public boolean isActive() {
         if (channel != null) {
+            /*if (channel.isActive()) {
+                logger.debug("({}) channel active", sessionId);
+            } else {
+                logger.warn("({}) channel inactive", sessionId);
+            }
+
+            if (channel.isOpen()) {
+                logger.debug("({}) channel opened", sessionId);
+            } else {
+                logger.warn("({}) channel closed", sessionId);
+            }*/
+
             return channel.isActive() && channel.isOpen();
         } else {
             return false;
@@ -350,13 +361,31 @@ public class Streamer {
      * @param port Destination Port
      */
     public void send(ByteBuf buf, String ip, int port) {
-        if (buf == null || ip == null || port <= 0) {
+        stop();
+        start();
+
+        if (!isActive()) {
+            logger.warn("({}) Fail to send the message. Channel is inactive. (ip={}, port={})", sessionId, ip, port);
             return;
         }
 
-        if (channel != null) {
-            InetSocketAddress addr = new InetSocketAddress(ip, port);
-            channel.writeAndFlush(new DatagramPacket(buf, addr));
+        try {
+            if (buf == null || ip == null || port <= 0) {
+                logger.warn("({}) Fail to send the message. (ip={}, port={})", sessionId, ip, port);
+                return;
+            }
+
+            if (channel != null) {
+                InetSocketAddress addr = new InetSocketAddress(ip, port);
+                ChannelFuture channelFuture = channel.writeAndFlush(new DatagramPacket(buf, addr));
+                if (channelFuture == null) {
+                    logger.warn("({}) Fail to send the message. (ip={}, port={})", sessionId, ip, port);
+                } else {
+                    channelFuture.addListener(ChannelFutureListener.CLOSE);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("({}) Streamer.send.Exception", sessionId, e);
         }
     }
 

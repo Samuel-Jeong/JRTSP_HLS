@@ -1,5 +1,6 @@
 package com.rtsp.module.netty.handler;
 
+import com.fsm.module.StateHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -7,6 +8,8 @@ import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.rtsp.config.ConfigManager;
+import com.rtsp.fsm.RtspEvent;
+import com.rtsp.fsm.RtspState;
 import com.rtsp.module.RtspManager;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
@@ -80,7 +83,7 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                             registerRtspUnitReq.getURtspHeader().getSeqNumber(),
                             registerRtspUnitReq.getURtspHeader().getTimeStamp(),
                             configManager.getRealm(),
-                            RegisterRtspUnitRes.NOT_ACCEPTED
+                            RegisterRtspUnitRes.NOT_AUTHORIZED
                     );
                     registerRtspUnitRes.setReason("NOT_AUTHORIZED");
 
@@ -94,6 +97,7 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                     rtspRegisterNettyChannel.sendResponse(datagramPacket.sender().getAddress().getHostAddress(), registerRtspUnitReq.getListenPort(), registerRtspUnitRes);
                 } else {
                     RegisterRtspUnitRes registerRtspUnitRes;
+                    StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
 
                     if (!rtspUnit.isRegistered()) {
                         // 1) Check nonce
@@ -118,6 +122,11 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                                     RegisterRtspUnitRes.SUCCESS
                             );
                             rtspUnit.setRegistered(true);
+
+                            rtspStateHandler.fire(
+                                    RtspEvent.REGISTER,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
                         } else {
                             registerRtspUnitRes = new RegisterRtspUnitRes(
                                     configManager.getMagicCookie(),
@@ -125,7 +134,7 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                                     registerRtspUnitReq.getURtspHeader().getSeqNumber(),
                                     registerRtspUnitReq.getURtspHeader().getTimeStamp(),
                                     configManager.getRealm(),
-                                    RegisterRtspUnitRes.NOT_ACCEPTED
+                                    RegisterRtspUnitRes.NOT_AUTHORIZED
                             );
                             registerRtspUnitRes.setReason("WRONG_NONCE");
 
@@ -141,6 +150,11 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                                 registerRtspUnitReq.getURtspHeader().getTimeStamp(),
                                 configManager.getRealm(),
                                 RegisterRtspUnitRes.SUCCESS
+                        );
+
+                        rtspStateHandler.fire(
+                                RtspEvent.REGISTER,
+                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
                         );
                     }
 
@@ -177,6 +191,12 @@ public class RtspRegisterChannelHandler extends SimpleChannelInboundHandler<Data
                     // RTSP ID 등록 해제
                     RtspManager.getInstance().closeRtspUnit(rtspUnitId);
                     rtspUnit.setRegistered(false);
+
+                    StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
+                    rtspStateHandler.fire(
+                            RtspEvent.IDLE,
+                            rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                    );
                 }
 
                 rtspRegisterNettyChannel.sendResponse(

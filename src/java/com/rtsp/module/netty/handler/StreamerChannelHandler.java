@@ -30,7 +30,7 @@ public class StreamerChannelHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        logger.warn("({}) StreamerChannelHandler is inactive.", id);
+        //logger.warn("({}) StreamerChannelHandler is inactive.", id);
     }
 
     @Override

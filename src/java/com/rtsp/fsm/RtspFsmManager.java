@@ -37,10 +37,29 @@ public class RtspFsmManager {
         StateHandler rtspStateHandler = stateManager.getStateHandler(RtspState.NAME);
         //
 
+        // REGISTER
+        rtspStateHandler.addState(
+                RtspEvent.REGISTER,
+                RtspState.IDLE, RtspState.REGISTER,
+                null,
+                null,
+                null, 0, 0
+        );
+
         // OPTIONS
         rtspStateHandler.addState(
                 RtspEvent.OPTIONS,
-                RtspState.IDLE, RtspState.OPTIONS,
+                RtspState.REGISTER, RtspState.OPTIONS,
+                null,
+                null,
+                null, 0, 0
+        );
+        //
+
+        // OPTIONS_FAIL
+        rtspStateHandler.addState(
+                RtspEvent.OPTIONS_FAIL,
+                RtspState.OPTIONS, RtspState.REGISTER,
                 null,
                 null,
                 null, 0, 0
@@ -51,6 +70,21 @@ public class RtspFsmManager {
         rtspStateHandler.addState(
                 RtspEvent.DESCRIBE,
                 RtspState.OPTIONS, RtspState.DESCRIBE,
+                null,
+                null,
+                null, 0, 0
+        );
+        //
+
+        // DESCRIBE_FAIL
+        HashSet<String> describeFailPrevStateSet = new HashSet<>(
+                Arrays.asList(
+                        RtspState.DESCRIBE, RtspState.SDP_READY
+                )
+        );
+        rtspStateHandler.addState(
+                RtspEvent.DESCRIBE_FAIL,
+                describeFailPrevStateSet, RtspState.REGISTER,
                 null,
                 null,
                 null, 0, 0
@@ -77,6 +111,16 @@ public class RtspFsmManager {
         );
         //
 
+        // SETUP_FAIL
+        rtspStateHandler.addState(
+                RtspEvent.SETUP_FAIL,
+                RtspState.SETUP, RtspState.REGISTER,
+                null,
+                null,
+                null, 0, 0
+        );
+        //
+
         // PLAY
         HashSet<String> playPrevStateSet = new HashSet<>(
                 Arrays.asList(
@@ -92,10 +136,30 @@ public class RtspFsmManager {
         );
         //
 
+        // PLAY_FAIL
+        rtspStateHandler.addState(
+                RtspEvent.PLAY_FAIL,
+                RtspState.PLAY, RtspState.REGISTER,
+                null,
+                null,
+                null, 0, 0
+        );
+        //
+
         // PAUSE
         rtspStateHandler.addState(
                 RtspEvent.PAUSE,
                 RtspState.PLAY, RtspState.PAUSE,
+                null,
+                null,
+                null, 0, 0
+        );
+        //
+
+        // PAUSE_FAIL
+        rtspStateHandler.addState(
+                RtspEvent.PAUSE_FAIL,
+                RtspState.PAUSE, RtspState.PLAY,
                 null,
                 null,
                 null, 0, 0
@@ -115,13 +179,32 @@ public class RtspFsmManager {
                 null,
                 null, 0, 0
         );
+
+        // TEARDOWN_FAIL
+        rtspStateHandler.addState(
+                RtspEvent.TEARDOWN_FAIL,
+                RtspState.STOP, RtspState.PLAY,
+                null,
+                null,
+                null, 0, 0
+        );
+        //
+
+        // TEARDOWN_OK
+        rtspStateHandler.addState(
+                RtspEvent.TEARDOWN_OK,
+                RtspState.STOP, RtspState.REGISTER,
+                null,
+                null,
+                null, 0, 0
+        );
         //
 
         // IDLE
         HashSet<String> idlePrevStateSet = new HashSet<>(
                 Arrays.asList(
-                        RtspState.OPTIONS, RtspState.DESCRIBE, RtspState.SDP_READY, RtspState.SETUP,
-                        RtspState.PLAY, RtspState.PAUSE, RtspState.STOP
+                        RtspState.REGISTER, RtspState.OPTIONS, RtspState.DESCRIBE, RtspState.SDP_READY,
+                        RtspState.SETUP, RtspState.PLAY, RtspState.PAUSE, RtspState.STOP
                 )
         );
         rtspStateHandler.addState(

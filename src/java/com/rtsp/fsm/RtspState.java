@@ -9,6 +9,7 @@ public class RtspState {
     public static final String NAME = "RtspState";
 
     public static final String IDLE = "IDLE";
+    public static final String REGISTER = "REGISTER";
     public static final String OPTIONS = "OPTIONS";
     public static final String DESCRIBE = "DESCRIBE";
     public static final String SDP_READY = "SDP_READY";

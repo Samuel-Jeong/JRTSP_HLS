@@ -1,10 +1,16 @@
 package com.rtsp.service;
 
+import com.fsm.module.StateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.config.ConfigManager;
+import com.rtsp.fsm.RtspEvent;
+import com.rtsp.fsm.RtspState;
 import com.rtsp.module.RtspManager;
+import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
 
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -16,6 +22,8 @@ public class ServiceManager {
     private static final Logger logger = LoggerFactory.getLogger(ServiceManager.class);
 
     private static ServiceManager serviceManager = null;
+
+    private String externalClientRtspUnitId = null;
 
     private static final int DELAY = 1000;
 
@@ -38,11 +46,36 @@ public class ServiceManager {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    private void start () {
+    private boolean start () {
+        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        if (configManager.isExternalClientAccess()) {
+            externalClientRtspUnitId = UUID.randomUUID().toString();
+            RtspManager.getInstance().openRtspUnit(
+                    externalClientRtspUnitId,
+                    configManager.getLocalListenIp(),
+                    configManager.getLocalRtspListenPort()
+            );
+
+            RtspUnit rtspUnit = RtspManager.getInstance().getRtspUnit(externalClientRtspUnitId);
+            if (rtspUnit == null) {
+                logger.warn("Fail to create the external client's rtsp unit.");
+                return false;
+            }
+
+            StateHandler rtspStateHandler = rtspUnit.getStateManager().getStateHandler(RtspState.NAME);
+            rtspStateHandler.fire(
+                    RtspEvent.REGISTER,
+                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+            );
+
+
+        }
+
         ResourceManager.getInstance().initResource();
         NettyChannelManager.getInstance().addRegisterChannel();
 
         logger.debug("| All services are opened.");
+        return true;
     }
 
     public void stop () {
@@ -60,7 +93,10 @@ public class ServiceManager {
      * @brief Main Service Loop
      */
     public void loop () {
-        start();
+        if (!start()) {
+            logger.error("Fail to start the program.");
+            return;
+        }
 
         TimeUnit timeUnit = TimeUnit.MILLISECONDS;
         while (!isQuit) {
@@ -70,6 +106,16 @@ public class ServiceManager {
                 logger.warn("| ServiceManager.loop.InterruptedException", e);
             }
         }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    public String getExternalClientRtspUnitId() {
+        return externalClientRtspUnitId;
+    }
+
+    public void setExternalClientRtspUnitId(String externalClientRtspUnitId) {
+        this.externalClientRtspUnitId = externalClientRtspUnitId;
     }
 
     ////////////////////////////////////////////////////////////////////////////////

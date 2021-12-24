@@ -28,6 +28,7 @@ public class ConfigManager {
     // Field String
     public static final String FIELD_SEND_BUF_SIZE = "SEND_BUF_SIZE";
     public static final String FIELD_RECV_BUF_SIZE = "RECV_BUF_SIZE";
+    public static final String FIELD_EXTERNAL_CLIENT_ACCESS = "EXTERNAL_CLIENT_ACCESS";
 
     public static final String FIELD_FFMPEG_PATH = "FFMPEG_PATH";
     public static final String FIELD_FFPROBE_PATH = "FFPROBE_PATH";
@@ -53,6 +54,7 @@ public class ConfigManager {
     // COMMON
     private int sendBufSize = 0;
     private int recvBufSize = 0;
+    private boolean isExternalClientAccess = false;
 
     // FFMPEG
     private String ffmpegPath = null;
@@ -124,6 +126,8 @@ public class ConfigManager {
         if (this.recvBufSize <= 0) {
             return;
         }
+
+        this.isExternalClientAccess = Boolean.parseBoolean(getIniValue(SECTION_COMMON, FIELD_EXTERNAL_CLIENT_ACCESS));
 
         logger.debug("Load [{}] config...(OK)", SECTION_COMMON);
     }
@@ -273,6 +277,10 @@ public class ConfigManager {
     }
 
     ////////////////////////////////////////////////////////////////////////////////
+
+    public boolean isExternalClientAccess() {
+        return isExternalClientAccess;
+    }
 
     public int getSendBufSize() {
         return sendBufSize;

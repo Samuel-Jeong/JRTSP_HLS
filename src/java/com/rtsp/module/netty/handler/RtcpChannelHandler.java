@@ -60,24 +60,26 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
 
             logger.debug("({}) data: [{}], readBytes: [{}]", name, ByteUtil.byteArrayToHex(data), readBytes);
 
-            RtcpPacket rtcpPacket = new RtcpPacket(data);
-            logger.debug("({}) [RTCP] {}", name, rtcpPacket);
+            if (data.length >= RtcpPacket.HEADER_SIZE) {
+                RtcpPacket rtcpPacket = new RtcpPacket(data);
+                logger.debug("({}) {}", name, rtcpPacket);
 
-            float fractionLost = rtcpPacket.fractionLost;
-            if (fractionLost >= 0 && fractionLost <= 0.01) {
-                rtspUnit.setCongestionLevel(0);
-            }
-            else if (fractionLost > 0.01 && fractionLost <= 0.25) {
-                rtspUnit.setCongestionLevel(1);
-            }
-            else if (fractionLost > 0.25 && fractionLost <= 0.5) {
-                rtspUnit.setCongestionLevel(2);
-            }
-            else if (fractionLost > 0.5 && fractionLost <= 0.75) {
-                rtspUnit.setCongestionLevel(3);
-            }
-            else {
-                rtspUnit.setCongestionLevel(4);
+                float fractionLost = rtcpPacket.fractionLost;
+                if (fractionLost >= 0 && fractionLost <= 0.01) {
+                    rtspUnit.setCongestionLevel(0);
+                }
+                else if (fractionLost > 0.01 && fractionLost <= 0.25) {
+                    rtspUnit.setCongestionLevel(1);
+                }
+                else if (fractionLost > 0.25 && fractionLost <= 0.5) {
+                    rtspUnit.setCongestionLevel(2);
+                }
+                else if (fractionLost > 0.5 && fractionLost <= 0.75) {
+                    rtspUnit.setCongestionLevel(3);
+                }
+                else {
+                    rtspUnit.setCongestionLevel(4);
+                }
             }
         } catch (Exception e) {
             logger.warn("| ({}) Fail to handle the rtcp Packet.", name, e);
