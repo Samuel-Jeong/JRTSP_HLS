@@ -12,6 +12,7 @@ import com.rtsp.service.AppInstance;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -268,21 +269,9 @@ public class NettyChannelManager {
     public void deleteAllRtcpChannels () {
         try {
             rtcpChannelMapLock.lock();
+            rtcpChannelMap.entrySet().removeIf(Objects::nonNull);
 
-            if (!rtcpChannelMap.isEmpty()) {
-                for (Map.Entry<String, RtcpNettyChannel> entry : rtcpChannelMap.entrySet()) {
-                    RtcpNettyChannel rtcpNettyChannel = entry.getValue();
-                    if (rtcpNettyChannel == null) {
-                        continue;
-                    }
-
-                    rtcpNettyChannel.closeChannel();
-                    rtcpNettyChannel.stop();
-                    rtcpChannelMap.remove(entry.getKey());
-                }
-
-                logger.debug("| Success to close all rtcp channel(s).");
-            }
+            logger.debug("| Success to close all rtcp channel(s).");
         } catch (Exception e) {
             logger.warn("| Fail to close all rtcp channel(s).", e);
         } finally {

@@ -51,7 +51,7 @@ public class Streamer {
     private final Random random = new Random();
     private int ssrc;
     private int curSeqNum;
-    private int curTimeStamp;
+    private long curTimeStamp;
 
     private List<MediaSegment> mediaSegmentList = null;
     private String m3u8PathOnly = null;
@@ -69,11 +69,8 @@ public class Streamer {
         this.listenPort = listenPort;
 
         ssrc = random.nextInt(Integer.MAX_VALUE);
-        //curSeqNum = random.nextInt(100);
-        //curTimeStamp = random.nextInt(100);
-
-        curSeqNum = 1;
-        curTimeStamp = 0;
+        curSeqNum = random.nextInt(100);
+        curTimeStamp = random.nextInt(100);
 
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }
@@ -81,10 +78,6 @@ public class Streamer {
     /////////////////////////////////////////////////////////////////////
 
     public Streamer init() {
-        if (channel != null) {
-            return null;
-        }
-
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
         group = new NioEventLoopGroup(configManager.getStreamThreadPoolSize());
         b.group(group).channel(NioDatagramChannel.class)
@@ -109,7 +102,7 @@ public class Streamer {
         return this;
     }
 
-    public void start () {
+    public void open() {
         try {
             if (m3u8File == null) {
                 String destFilePath = video.getResultM3U8FilePath();
@@ -167,30 +160,18 @@ public class Streamer {
         //logger.debug("({}) Streamer is paused. ({})", sessionId, this);
     }
 
-    public void stop () {
+    public void close () {
         if (channel != null) {
             channel.closeFuture();
             channel.close();
             channel = null;
         }
+    }
 
+    public void stop () {
+        close();
         isPaused.set(true);
         setPausedTime(0);
-        //logger.debug("({}) Streamer is stopped. ({})", sessionId, this);
-    }
-
-    private void removeFile(File file) {
-        if (file.exists()) {
-            if (file.delete()) {
-                logger.trace("({}) Success to remove. (file={})", sessionId, file.getAbsolutePath());
-            } else {
-                logger.warn("({}) Fail to remove files. (file={})", sessionId, file.getAbsolutePath());
-            }
-        }
-    }
-
-    public void finish () {
-        stop();
 
         if (AppInstance.getInstance().getConfigManager().isDeleteM3u8()) {
             if (m3u8File != null) {
@@ -208,6 +189,22 @@ public class Streamer {
                 }
             }
         }
+
+        //logger.debug("({}) Streamer is stopped. ({})", sessionId, this);
+    }
+
+    private void removeFile(File file) {
+        if (file.exists()) {
+            if (file.delete()) {
+                logger.trace("({}) Success to remove. (file={})", sessionId, file.getAbsolutePath());
+            } else {
+                logger.warn("({}) Fail to remove files. (file={})", sessionId, file.getAbsolutePath());
+            }
+        }
+    }
+
+    public void finish () {
+        stop();
 
         if (group != null) {
             group.shutdownGracefully();
@@ -312,11 +309,11 @@ public class Streamer {
         this.curSeqNum = curSeqNum;
     }
 
-    public int getCurTimeStamp() {
+    public long getCurTimeStamp() {
         return curTimeStamp;
     }
 
-    public void setCurTimeStamp(int curTimeStamp) {
+    public void setCurTimeStamp(long curTimeStamp) {
         this.curTimeStamp = curTimeStamp;
     }
 
@@ -361,8 +358,8 @@ public class Streamer {
      * @param port Destination Port
      */
     public void send(ByteBuf buf, String ip, int port) {
-        stop();
-        start();
+        close();
+        open();
 
         if (!isActive()) {
             logger.warn("({}) Fail to send the message. Channel is inactive. (ip={}, port={})", sessionId, ip, port);
@@ -380,8 +377,6 @@ public class Streamer {
                 ChannelFuture channelFuture = channel.writeAndFlush(new DatagramPacket(buf, addr));
                 if (channelFuture == null) {
                     logger.warn("({}) Fail to send the message. (ip={}, port={})", sessionId, ip, port);
-                } else {
-                    channelFuture.addListener(ChannelFutureListener.CLOSE);
                 }
             }
         } catch (Exception e) {

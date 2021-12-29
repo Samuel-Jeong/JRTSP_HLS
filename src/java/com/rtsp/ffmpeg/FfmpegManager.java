@@ -50,7 +50,27 @@ public class FfmpegManager {
             IsoFile isoFile = new IsoFile(srcFilePath);
             return (double) isoFile.getMovieBox().getMovieHeaderBox().getDuration() / isoFile.getMovieBox().getMovieHeaderBox().getTimescale();
         } catch (Exception e) {
-            logger.warn("Fail to get the file time. (srcFilePath={})", srcFilePath);
+            logger.warn("Fail to get the file time. (srcFilePath={})", srcFilePath, e);
+            return 0;
+        }
+    }
+
+    public long getDuration(String srcFilePath) {
+        try {
+            IsoFile isoFile = new IsoFile(srcFilePath);
+            return isoFile.getMovieBox().getMovieHeaderBox().getDuration();
+        } catch (Exception e) {
+            logger.warn("Fail to get the file duration. (srcFilePath={})", srcFilePath, e);
+            return 0;
+        }
+    }
+
+    public long getFileSize(String srcFilePath) {
+        try {
+            File file = new File(srcFilePath);
+            return file.length();
+        } catch (Exception e) {
+            logger.warn("Fail to get the file size. (srcFilePath={})", srcFilePath, e);
             return 0;
         }
     }
@@ -68,7 +88,6 @@ public class FfmpegManager {
             logger.debug("Success to make the directory. ({})", destFilePathOnly);
         }
 
-
         //
         try {
             ConfigManager configManager = AppInstance.getInstance().getConfigManager();
@@ -79,39 +98,37 @@ public class FfmpegManager {
             if (ffprobe == null) {
                 ffprobe = new FFprobe(configManager.getFfprobePath());
             }
-            //FFmpegProbeResult in = ffprobe.probe(configManager.getFfprobePath());
+
+            if (fileTime < 10) {
+                fileTime += 10;
+            }
 
             FFmpegBuilder builder;
             if (endTime != 0) {
-                builder = new FFmpegBuilder()
-                        .overrideOutputFiles(true)
-                        .setInput(srcFilePath)
-                        .addOutput(destTotalFilePath)
-                        .setFormat("hls")
-
+                builder = new FFmpegBuilder().overrideOutputFiles(true).setInput(srcFilePath).addOutput(destTotalFilePath).setFormat("hls")
+                        //.addExtraArgs("-preset", "ultrafast").addExtraArgs("-flags").addExtraArgs("-global_header")
                         .addExtraArgs("-hls_list_size", String.valueOf(0))
-                        .addExtraArgs("-hls_time", String.valueOf(fileTime / 2))
-                        //.addExtraArgs("-t", FFmpegUtils.toTimecode(endTime, TimeUnit.MILLISECONDS))
+                        .addExtraArgs("-hls_time", String.valueOf(fileTime / 10))
+                        .addExtraArgs("-hls_flags", "split_by_time")
+                        //.addExtraArgs("-hls_flags", "omit_endlist")
+                        //.addExtraArgs("-start_number", String.valueOf())
+                        //.addExtraArgs("-hls_flags", "discont_start")
                         .addExtraArgs("-t", String.valueOf(endTime))
                         .done();
             } else {
-                builder = new FFmpegBuilder()
-                        .overrideOutputFiles(true)
-                        .setInput(srcFilePath)
-                        .addOutput(destTotalFilePath)
-                        .setFormat("hls")
-
+                builder = new FFmpegBuilder().overrideOutputFiles(true).setInput(srcFilePath).addOutput(destTotalFilePath).setFormat("hls")
+                        //.addExtraArgs("-preset", "ultrafast").addExtraArgs("-flags").addExtraArgs("-global_header")
                         .addExtraArgs("-hls_list_size", String.valueOf(0))
-                        .addExtraArgs("-hls_time", String.valueOf(fileTime / 2))
+                        .addExtraArgs("-hls_time", String.valueOf(fileTime / 10))
+                        .addExtraArgs("-hls_flags", "split_by_time")
                         //.addExtraArgs("-hls_flags", "omit_endlist")
+                        //.addExtraArgs("-start_number", String.valueOf())
                         //.addExtraArgs("-hls_flags", "discont_start")
-                        //.addExtraArgs("-hls_flags", "delete_segments")
-                        //.addExtraArgs("-hls_flags", "append_list")
                         .done();
             }
 
             builder.setStartOffset(startTime, TimeUnit.SECONDS);
-            //builder.readAtNativeFrameRate(); > for live streaming... not useful to offline streaming
+            //builder.readAtNativeFrameRate(); // > for live streaming... not useful to offline streaming
 
             if (executor == null) {
                 executor = new FFmpegExecutor(ffmpeg, ffprobe);

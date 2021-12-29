@@ -29,7 +29,7 @@ public class RtspUnit {
 
     private final RtspNettyChannel rtspChannel;
     private final RtcpNettyChannel rtcpChannel;
-    private int serverPort = 0;
+    private int clientRtpListenPort = 0;
 
     // TODO: Must manage the streamers
     private Streamer streamer = null;
@@ -145,20 +145,20 @@ public class RtspUnit {
         return rtcpChannel;
     }
 
-    public int getServerPort() {
-        return serverPort;
+    public int getClientRtpListenPort() {
+        return clientRtpListenPort;
     }
 
-    public void setServerPort(int serverPort) {
-        if (serverPort <= 0) {
-            logger.warn("({}) RtspUnit serverPort is not set up. ({})", rtspUnitId, serverPort);
+    public void setClientRtpListenPort(int clientRtpListenPort) {
+        if (clientRtpListenPort <= 0) {
+            logger.warn("({}) RtspUnit clientRtpListenPort is not set up. ({})", rtspUnitId, clientRtpListenPort);
             return;
         }
 
-        if (this.serverPort != serverPort) {
-            this.serverPort = serverPort;
-            ResourceManager.getInstance().restorePort(serverPort);
-            logger.debug("({}) RtspUnit serverPort is set up. ({})", rtspUnitId, serverPort);
+        if (this.clientRtpListenPort != clientRtpListenPort) {
+            this.clientRtpListenPort = clientRtpListenPort;
+            ResourceManager.getInstance().restorePort(clientRtpListenPort);
+            logger.debug("({}) RtspUnit clientRtpListenPort is set up. ({})", rtspUnitId, clientRtpListenPort);
         }
     }
 

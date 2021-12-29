@@ -20,10 +20,6 @@ public class SessionDescriptionFactory extends SdpFactory {
     // Optional
     private ConnectionField connectionField;
 
-    // AMF Fields
-    private OriginField amfOriginField;
-    private ConnectionField amfConnectionField;
-
     ////////////////////////////////////////////////////////////////////////////////
 
     public SessionDescriptionFactory(
@@ -97,22 +93,6 @@ public class SessionDescriptionFactory extends SdpFactory {
         return connectionField;
     }
 
-    public OriginField getAmfOriginField() {
-        return amfOriginField;
-    }
-
-    public void setAmfOriginField(OriginField amfOriginField) {
-        this.amfOriginField = amfOriginField;
-    }
-
-    public ConnectionField getAmfConnectionField() {
-        return amfConnectionField;
-    }
-
-    public void setAmfConnectionField(ConnectionField amfConnectionField) {
-        this.amfConnectionField = amfConnectionField;
-    }
-
     ////////////////////////////////////////////////////////////////////////////////
 
     public String getData() {
@@ -122,25 +102,14 @@ public class SessionDescriptionFactory extends SdpFactory {
                 CRLF;
 
         // Origin
-        if (amfOriginField != null) {
-            result += originField.getOriginType() + "=" +
-                    amfOriginField.getOriginUserName() + " " +
-                    originField.getSessionId() + " " +
-                    originField.getSessionVersion() + " " +
-                    amfOriginField.getOriginNetworkType() + " " +
-                    amfOriginField.getOriginAddressType() + " " +
-                    amfOriginField.getOriginAddress() +
-                    CRLF;
-        } else {
-            result += originField.getOriginType() + "=" +
-                    originField.getOriginUserName() + " " +
-                    originField.getSessionId() + " " +
-                    originField.getSessionVersion() + " " +
-                    originField.getOriginNetworkType() + " " +
-                    originField.getOriginAddressType() + " " +
-                    originField.getOriginAddress() +
-                    CRLF;
-        }
+        result += originField.getOriginType() + "=" +
+                originField.getOriginUserName() + " " +
+                originField.getSessionId() + " " +
+                originField.getSessionVersion() + " " +
+                originField.getOriginNetworkType() + " " +
+                originField.getOriginAddressType() + " " +
+                originField.getOriginAddress() +
+                CRLF;
 
         // Session
         result += sessionField.getSessionType() + "=" +
@@ -149,19 +118,11 @@ public class SessionDescriptionFactory extends SdpFactory {
 
         // Connection
         if (connectionField != null) {
-            if (amfConnectionField != null) {
-                result += amfConnectionField.getConnectionType() + "=" +
-                        amfConnectionField.getConnectionNetworkType() + " " +
-                        amfConnectionField.getConnectionAddressType() + " " +
-                        amfConnectionField.getConnectionAddress() +
-                        CRLF;
-            } else {
-                result += connectionField.getConnectionType() + "=" +
-                        connectionField.getConnectionNetworkType() + " " +
-                        connectionField.getConnectionAddressType() + " " +
-                        connectionField.getConnectionAddress() +
-                        CRLF;
-            }
+            result += connectionField.getConnectionType() + "=" +
+                    connectionField.getConnectionNetworkType() + " " +
+                    connectionField.getConnectionAddressType() + " " +
+                    connectionField.getConnectionAddress() +
+                    CRLF;
         }
 
         return result;

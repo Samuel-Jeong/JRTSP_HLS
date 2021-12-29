@@ -128,7 +128,7 @@ public class RtspNettyChannel { // > TCP
             return channelFuture.channel();
         } catch (Exception e) {
             logger.warn("Channel is interrupted. (address={}:{})", ip, port, e);
-            return null;
+            return serverChannel;
         }
     }
 
@@ -270,7 +270,7 @@ public class RtspNettyChannel { // > TCP
             return;
         }
 
-        streamer.start();
+        streamer.open();
     }
 
     public void pauseStreaming(String key) {

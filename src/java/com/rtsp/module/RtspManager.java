@@ -8,7 +8,7 @@ import com.rtsp.module.netty.NettyChannelManager;
 import com.rtsp.service.ResourceManager;
 
 import java.util.HashMap;
-import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -69,7 +69,7 @@ public class RtspManager {
             NettyChannelManager.getInstance().deleteRtspChannel(rtspUnitId);
             NettyChannelManager.getInstance().deleteRtcpChannel(rtspUnitId);
 
-            int port = rtspUnit.getServerPort();
+            int port = rtspUnit.getClientRtpListenPort();
             if (port > 0) {
                 ResourceManager.getInstance().restorePort(port);
             }
@@ -85,27 +85,9 @@ public class RtspManager {
     public void closeAllRtspUnits() {
         try {
             rtspUnitMapLock.lock();
-
-            for (Map.Entry<String, RtspUnit> entry : rtspUnitMap.entrySet()) {
-                if (entry == null) {
-                    return;
-                }
-
-                RtspUnit rtspUnit = entry.getValue();
-                if (rtspUnit == null) {
-                    return;
-                }
-
-                NettyChannelManager.getInstance().deleteRtspChannel(rtspUnit.getRtspUnitId());
-                NettyChannelManager.getInstance().deleteRtcpChannel(rtspUnit.getRtspUnitId());
-
-                int port = rtspUnit.getServerPort();
-                if (port > 0) {
-                    ResourceManager.getInstance().restorePort(port);
-                }
-
-                rtspUnitMap.remove(rtspUnit.getRtspUnitId());
-            }
+            NettyChannelManager.getInstance().deleteAllRtcpChannels();
+            NettyChannelManager.getInstance().deleteAllRtspChannels();
+            rtspUnitMap.entrySet().removeIf(Objects::nonNull);
         } catch (Exception e) {
             logger.warn("Fail to close all rtsp units.", e);
         } finally {
@@ -115,6 +97,10 @@ public class RtspManager {
 
     public RtspUnit getRtspUnit(String rtspUnitId) {
         return rtspUnitMap.get(rtspUnitId);
+    }
+
+    public int getRtspUnitMapSize() {
+        return rtspUnitMap.size();
     }
 
 }

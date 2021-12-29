@@ -9,6 +9,7 @@ import com.rtsp.fsm.RtspState;
 import com.rtsp.module.RtspManager;
 import com.rtsp.module.base.RtspUnit;
 import com.rtsp.module.netty.NettyChannelManager;
+import com.rtsp.service.scheduler.schedule.ScheduleManager;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 public class ServiceManager {
 
     private static final Logger logger = LoggerFactory.getLogger(ServiceManager.class);
+
+    public static final String MAIN_SCHEDULE_JOB = "MAIN";
 
     private static ServiceManager serviceManager = null;
 
@@ -48,6 +51,15 @@ public class ServiceManager {
 
     private boolean start () {
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        if (ScheduleManager.getInstance().initJob(MAIN_SCHEDULE_JOB, configManager.getStreamThreadPoolSize(), configManager.getStreamThreadPoolSize() * 2)) {
+            ScheduleManager.getInstance().startJob(MAIN_SCHEDULE_JOB,
+                    new HaHandler(HaHandler.class.getSimpleName(),
+                            0, DELAY, TimeUnit.MILLISECONDS,
+                            5, 0, true
+                    )
+            );
+        }
+
         if (configManager.isExternalClientAccess()) {
             externalClientRtspUnitId = UUID.randomUUID().toString();
             RtspManager.getInstance().openRtspUnit(
@@ -67,8 +79,6 @@ public class ServiceManager {
                     RtspEvent.REGISTER,
                     rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
             );
-
-
         }
 
         ResourceManager.getInstance().initResource();
@@ -79,6 +89,8 @@ public class ServiceManager {
     }
 
     public void stop () {
+        ScheduleManager.getInstance().stopAll(MAIN_SCHEDULE_JOB);
+
         NettyChannelManager.getInstance().removeRegisterChannel();
         NettyChannelManager.getInstance().stop();
         RtspManager.getInstance().closeAllRtspUnits();

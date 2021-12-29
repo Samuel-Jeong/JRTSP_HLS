@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static rtsp.module.sdp.base.attribute.base.RtpMapAttributeFactory.DTMF;
+import static com.rtsp.module.sdp.base.attribute.base.RtpMapAttributeFactory.DTMF;
 
 /**
  * @class public class MediaFactory

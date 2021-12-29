@@ -47,9 +47,14 @@ public class RtspFsmManager {
         );
 
         // OPTIONS
+        HashSet<String> optionPrevStateSet = new HashSet<>(
+                Arrays.asList(
+                        RtspState.REGISTER, RtspState.PLAY, RtspState.PAUSE
+                )
+        );
         rtspStateHandler.addState(
                 RtspEvent.OPTIONS,
-                RtspState.REGISTER, RtspState.OPTIONS,
+                optionPrevStateSet, RtspState.OPTIONS,
                 null,
                 null,
                 null, 0, 0
@@ -102,9 +107,14 @@ public class RtspFsmManager {
         //
 
         // SETUP
+        HashSet<String> setupPrevStateSet = new HashSet<>(
+                Arrays.asList(
+                        RtspState.SDP_READY, RtspState.OPTIONS
+                )
+        );
         rtspStateHandler.addState(
                 RtspEvent.SETUP,
-                RtspState.SDP_READY, RtspState.SETUP,
+                setupPrevStateSet, RtspState.SETUP,
                 null,
                 null,
                 null, 0, 0
@@ -169,7 +179,7 @@ public class RtspFsmManager {
         // TEARDOWN
         HashSet<String> stopPrevStateSet = new HashSet<>(
                 Arrays.asList(
-                        RtspState.PLAY, RtspState.PAUSE
+                        RtspState.SDP_READY, RtspState.PLAY, RtspState.PAUSE
                 )
         );
         rtspStateHandler.addState(

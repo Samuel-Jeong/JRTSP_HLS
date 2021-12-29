@@ -1,8 +1,11 @@
 package com.rtsp.config;
 
+import org.apache.commons.net.ntp.TimeStamp;
 import org.ini4j.Ini;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.rtsp.module.sdp.SdpParser;
+import com.rtsp.module.sdp.base.Sdp;
 import com.rtsp.service.ServiceManager;
 
 import java.io.File;
@@ -16,6 +19,9 @@ public class ConfigManager {
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
 
+    public static final int MP2T_TYPE = 33; //RTP payload type for MJPEG video
+    public static final String MP2T_TAG = "MP2T"; //RTP payload tag for MJPEG video
+
     private Ini ini = null;
 
     // Section String
@@ -24,6 +30,7 @@ public class ConfigManager {
     public static final String SECTION_NETWORK = "NETWORK"; // NETWORK Section 이름
     public static final String SECTION_HLS = "HLS"; // HLS Section 이름
     public static final String SECTION_REGISTER = "REGISTER"; // REGISTER Section 이름
+    private static final String SECTION_SDP = "SDP"; // SDP Section 이름
 
     // Field String
     public static final String FIELD_SEND_BUF_SIZE = "SEND_BUF_SIZE";
@@ -81,6 +88,17 @@ public class ConfigManager {
     private String magicCookie;
     private String hashKey;
 
+    // SDP
+    private final SdpParser sdpParser = new SdpParser();
+    private String version;
+    private String origin;
+    private String session;
+    private String time;
+    private String connection;
+    private String media;
+    String[] mp2tAttributeList;
+    String[] attributeList;
+
     ////////////////////////////////////////////////////////////////////////////////
 
     /**
@@ -103,6 +121,7 @@ public class ConfigManager {
             loadNetworkConfig();
             loadHlsConfig();
             loadRegisterConfig();
+            loadSdpConfig();
 
             logger.info("Load config [{}]", configPath);
         } catch (IOException e) {
@@ -233,6 +252,139 @@ public class ConfigManager {
         hashKey = getIniValue(SECTION_REGISTER, FIELD_HASH_KEY);
 
         logger.debug("Load [{}] config...(OK)", SECTION_REGISTER);
+    }
+
+    private void loadSdpConfig() {
+        version = getIniValue(SECTION_SDP, "VERSION");
+        if (version == null) {
+            logger.error("[SECTION_SDP] VERSION IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+        version = "v=" + version + "\r\n";
+
+        origin = getIniValue(SECTION_SDP, "ORIGIN");
+        if (origin == null) {
+            logger.error("[SECTION_SDP] ORIGIN IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+
+        session = getIniValue(SECTION_SDP, "SESSION");
+        if (session == null) {
+            logger.error("[SECTION_SDP] SESSION IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+        session = "s=" + session + "\r\n";
+
+        time = getIniValue(SECTION_SDP, "TIME");
+        if (time == null) {
+            logger.error("[SECTION_SDP] TIME IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+        time = "t=" + time + "\r\n";
+
+        connection = getIniValue(SECTION_SDP, "CONNECTION");
+        if (connection == null) {
+            logger.error("[SECTION_SDP] CONNECTION IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+
+        media = getIniValue(SECTION_SDP, "MEDIA");
+        if (media == null) {
+            logger.error("[SECTION_SDP] MEDIA IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+
+        mp2tAttributeList = new String[1];
+        String attributeMp2t = getIniValue(SECTION_SDP, String.format("ATTR_MP2T_%d", 0));
+        if (attributeMp2t == null) {
+            logger.error("[SECTION_SDP] ATTR_MP2T_{} IS NOT DEFINED IN THE LOCAL SDP.", 0);
+            System.exit(1);
+        }
+        mp2tAttributeList[0] = attributeMp2t;
+
+        int attrCount = Integer.parseInt(getIniValue(SECTION_SDP, "ATTR_COUNT"));
+        if (attrCount < 0) {
+            logger.error("[SECTION_SDP] ATTR_COUNT IS NOT DEFINED IN THE LOCAL SDP.");
+            System.exit(1);
+        }
+
+        attributeList = new String[attrCount];
+        for (int i = 0; i < attrCount; i++) {
+            String attribute = getIniValue(SECTION_SDP, String.format("ATTR_%d", i));
+            if (attribute != null) {
+                attributeList[i] = attribute;
+            }
+        }
+    }
+
+    public Sdp loadLocalSdpConfig(String id, int remotePort) {
+        try {
+            StringBuilder sdpStr = new StringBuilder();
+
+            // 1) Session
+            // 1-1) Version
+            sdpStr.append(version);
+
+            // 1-2) Origin
+            /*
+                - Using NTP Timestamp
+                [RFC 4566]
+                  <sess-id> is a numeric string such that the tuple of <username>,
+                  <sess-id>, <nettype>, <addrtype>, and <unicast-address> forms a
+                  globally unique identifier for the session.  The method of
+                  <sess-id> allocation is up to the creating tool, but it has been
+                  suggested that a Network Time Protocol (NTP) format timestamp be
+                  used to ensure uniqueness.
+             */
+            String originSessionId = String.valueOf(TimeStamp.getCurrentTime().getTime());
+            String curOrigin = String.format(this.origin, originSessionId, localListenIp);
+            curOrigin = "o=" + curOrigin + "\r\n";
+            sdpStr.append(curOrigin);
+
+            // 1-3) Session
+            sdpStr.append(session);
+
+            // 3) Media
+            // 3-1) Connection
+            String connection = String.format(this.connection, localListenIp);
+            connection = "c=" + connection + "\r\n";
+            sdpStr.append(connection);
+
+            // 2) Time
+            // 2-1) Time
+            sdpStr.append(time);
+
+            // 3) Media
+            // 3-2) Media
+            sdpStr.append("m=");
+            String media = String.format(this.media, remotePort, MP2T_TYPE);
+            sdpStr.append(media);
+            sdpStr.append("\r\n");
+
+            // 3-3) Attribute
+            sdpStr.append("a=");
+            sdpStr.append(String.format(mp2tAttributeList[0], MP2T_TYPE));
+            sdpStr.append("\r\n");
+
+            for (String attribute : attributeList) {
+                sdpStr.append("a=");
+                sdpStr.append(attribute);
+                sdpStr.append("\r\n");
+            }
+
+            Sdp localSdp = null;
+            try {
+                localSdp = sdpParser.parseSdp(id, null, null, sdpStr.toString());
+                logger.debug("({}) Local SDP=\n{}", id, localSdp.getData(false));
+            } catch (Exception e) {
+                logger.error("({}) Fail to parse the local sdp. ({})", id, sdpStr, e);
+                System.exit(1);
+            }
+            return localSdp;
+        } catch (Exception e) {
+            logger.warn("Fail to load the local sdp.", e);
+            return null;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////
