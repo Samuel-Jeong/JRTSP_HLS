@@ -35,8 +35,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -240,7 +239,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         //streamer.setDestIp(AppInstance.getInstance().getConfigManager().getTargetIp());
                         String remoteIpAddress = remoteSocketAddress.getAddress().getHostAddress();
                         streamer.setDestIp(remoteIpAddress); // Remote IP Address
-
+                        logger.warn("({}) ({}) ({}) Destination ip is [{}].", name, rtspUnit.getRtspUnitId(), curSessionId, remoteIpAddress);
                         //
 
                         String sessionId = streamer.getSessionId();
