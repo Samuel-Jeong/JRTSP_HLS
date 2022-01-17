@@ -491,7 +491,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                         res.headers().add(
                                 RtspHeaderNames.SERVER,
-                                "RTSP Server"
+                                "URTSP Server"
                         );
                         res.headers().add(
                                 RtspManager.RTSP_RES_SESSION,
@@ -649,17 +649,26 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
     private void sendData(FfmpegManager ffmpegManager, VideoStream video, double fileTime, double npt1, double npt2,
                           StateHandler rtspStateHandler, RtspUnit rtspUnit, Streamer streamer, int destPort) {
         try {
-            //
-            ffmpegManager.convertMp4ToM3u8(
-                    video.getMp4FileName(),
-                    video.getResultM3U8FilePath(),
-                    (long) fileTime,
-                    (long) npt1,
-                    (long) npt2
-            );
+            // DIRECT PARSING
+            ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+            if (configManager.isM3u8DirectConverting()) {
+                ffmpegManager.convertMp4ToM3u8(
+                        video.getMp4FileName(),
+                        video.getResultM3U8FilePath(),
+                        (long) fileTime,
+                        (long) npt1,
+                        (long) npt2
+                );
+            }
             //
 
-            //
+            // CHECK M3U8 FILE
+            File m3u8File = new File(video.getResultM3U8FilePath());
+            if (!m3u8File.exists() || !m3u8File.isFile()) {
+                logger.warn("({}) ({}) ({}) M3U8 File is wrong.Fail to get the m3u8 data. (m3u8FilePath={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), video.getResultM3U8FilePath());
+                return;
+            }
+
             byte[] m3u8ByteData = Files.readAllBytes(
                     Paths.get(
                             video.getResultM3U8FilePath()

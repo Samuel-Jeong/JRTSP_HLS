@@ -8,8 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rtsp.module.RtspManager;
 import rtsp.module.base.RtspUnit;
-import rtsp.protocol.RtcpPacket;
 import rtsp.protocol.base.ByteUtil;
+import rtsp.protocol.rtcp.base.RtcpType;
+import rtsp.protocol.rtcp.packet.RtcpPacket;
+import rtsp.protocol.rtcp.type.regular.RtcpReceiverReport;
+import rtsp.protocol.rtcp.type.regular.base.RtcpHeader;
+import rtsp.protocol.rtcp.type.regular.base.report.RtcpReportBlock;
 
 /**
  * @class public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPacket>
@@ -60,25 +64,36 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
 
             logger.debug("({}) data: [{}], readBytes: [{}]", name, ByteUtil.byteArrayToHex(data), readBytes);
 
-            if (data.length >= RtcpPacket.HEADER_SIZE) {
+            if (data.length >= RtcpHeader.LENGTH) {
                 RtcpPacket rtcpPacket = new RtcpPacket(data);
                 logger.debug("({}) {}", name, rtcpPacket);
 
-                float fractionLost = rtcpPacket.fractionLost;
-                if (fractionLost >= 0 && fractionLost <= 0.01) {
-                    rtspUnit.setCongestionLevel(0);
-                }
-                else if (fractionLost > 0.01 && fractionLost <= 0.25) {
-                    rtspUnit.setCongestionLevel(1);
-                }
-                else if (fractionLost > 0.25 && fractionLost <= 0.5) {
-                    rtspUnit.setCongestionLevel(2);
-                }
-                else if (fractionLost > 0.5 && fractionLost <= 0.75) {
-                    rtspUnit.setCongestionLevel(3);
-                }
-                else {
-                    rtspUnit.setCongestionLevel(4);
+                int packetType = rtcpPacket.getRtcpHeader().getPacketType();
+                switch (packetType) {
+                    case RtcpType.RECEIVER_REPORT:
+                        RtcpReceiverReport rtcpReceiverReport = (RtcpReceiverReport) rtcpPacket.getRtcpFormat();
+                        RtcpReportBlock rtcpReportBlock = rtcpReceiverReport.getReportBlockByIndex(0);
+                        if (rtcpReportBlock != null) {
+                            float fractionLost = rtcpReportBlock.getFraction();
+                            if (fractionLost >= 0 && fractionLost <= 0.01) {
+                                rtspUnit.setCongestionLevel(0);
+                            }
+                            else if (fractionLost > 0.01 && fractionLost <= 0.25) {
+                                rtspUnit.setCongestionLevel(1);
+                            }
+                            else if (fractionLost > 0.25 && fractionLost <= 0.5) {
+                                rtspUnit.setCongestionLevel(2);
+                            }
+                            else if (fractionLost > 0.5 && fractionLost <= 0.75) {
+                                rtspUnit.setCongestionLevel(3);
+                            }
+                            else {
+                                rtspUnit.setCongestionLevel(4);
+                            }
+                        }
+                        break;
+                    default:
+                        break;
                 }
             }
         } catch (Exception e) {

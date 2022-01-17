@@ -8,6 +8,9 @@ public class ByteUtil {
     /** The maximum number of bytes in a UDP packet. */
     public static final int MAX_UDP_PACKET_SIZE = 65537;
 
+    /** Number of bytes in a Java byte. */
+    public static final int NUM_BYTES_IN_BYTE = 1;
+
     /** Number of bytes in a Java short. */
     public static final int NUM_BYTES_IN_SHORT = 2;
 

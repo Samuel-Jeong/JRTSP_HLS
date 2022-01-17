@@ -49,6 +49,7 @@ public class ConfigManager {
     public static final String FIELD_TARGET_RTP_PORT_MIN = "TARGET_RTP_PORT_MIN";
     public static final String FIELD_TARGET_RTP_PORT_MAX = "TARGET_RTP_PORT_MAX";
 
+    public static final String FIELD_DIRECT_PARSING = "DIRECT_CONVERTING";
     public static final String FIELD_HLS_LIST_SIZE = "HLS_LIST_SIZE";
     public static final String FIELD_HLS_TIME = "HLS_TIME";
     public static final String FIELD_DELETE_M3U8 = "DELETE_M3U8";
@@ -78,6 +79,7 @@ public class ConfigManager {
     private int targetRtpPortMax = 0;
 
     // HLS
+    private boolean isM3u8DirectConverting = false;
     private int hlsListSize = 0;
     private int hlsTime = 0;
     private boolean deleteM3u8 = true;
@@ -239,6 +241,8 @@ public class ConfigManager {
      * @brief HLS Section 을 로드하는 함수
      */
     private void loadHlsConfig() {
+        this.isM3u8DirectConverting = Boolean.parseBoolean(getIniValue(SECTION_HLS, FIELD_DIRECT_PARSING));
+
         this.hlsListSize = Integer.parseInt(getIniValue(SECTION_HLS, FIELD_HLS_LIST_SIZE));
         if (this.hlsListSize <= 0) {
             logger.error("Fail to load [{}-{}]. ({})", SECTION_HLS, FIELD_HLS_LIST_SIZE, hlsListSize);
@@ -487,6 +491,14 @@ public class ConfigManager {
 
     public int getLocalRtcpListenPort() {
         return localRtcpListenPort;
+    }
+
+    public boolean isM3u8DirectConverting() {
+        return isM3u8DirectConverting;
+    }
+
+    public void setM3u8DirectConverting(boolean m3u8DirectConverting) {
+        isM3u8DirectConverting = m3u8DirectConverting;
     }
 
     public int getHlsListSize() {
