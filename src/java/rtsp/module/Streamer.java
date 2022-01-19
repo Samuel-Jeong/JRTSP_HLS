@@ -1,5 +1,7 @@
 package rtsp.module;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -72,7 +74,7 @@ public class Streamer {
 
         ssrc = random.nextInt(Integer.MAX_VALUE);
         curSeqNum = random.nextInt(100);
-        curTimeStamp = random.nextInt(100);
+        curTimeStamp = 0;
 
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }
@@ -212,7 +214,7 @@ public class Streamer {
             group.shutdownGracefully();
         }
 
-        logger.debug("({}) Streamer is finished. ({})", sessionId, this);
+        logger.debug("({}) Streamer is finished.", sessionId);
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -383,17 +385,7 @@ public class Streamer {
 
     @Override
     public String toString() {
-        return "Streamer{" +
-                "id='" + sessionId + '\'' +
-                ", channel=" + channel +
-                ", listenIp='" + listenIp + '\'' +
-                ", listenPort=" + listenPort +
-                ", destIp='" + destIp + '\'' +
-                ", destPort=" + destPort +
-                ", rtcpDestPort=" + rtcpDestPort +
-                ", video=" + video +
-                ", uri='" + uri + '\'' +
-                ", m3u8File=" + m3u8File +
-                '}';
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        return gson.toJson(this);
     }
 }

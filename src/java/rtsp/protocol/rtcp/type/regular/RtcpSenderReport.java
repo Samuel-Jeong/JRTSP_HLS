@@ -95,7 +95,8 @@ public class RtcpSenderReport extends RtcpFormat {
     private List<RtcpReportBlock> rtcpReportBlockList = null;
 
     // Profile-specific extensions
-    private byte[] profileSpecificExtensions = null;
+    transient private byte[] profileSpecificExtensions = null;
+
     ////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////
@@ -113,7 +114,7 @@ public class RtcpSenderReport extends RtcpFormat {
 
     public RtcpSenderReport() {}
 
-    public RtcpSenderReport(byte[] data) {
+    public RtcpSenderReport(byte[] data, int resourceCount) {
         int dataLength = data.length;
         if (dataLength >= MIN_LENGTH) {
             int index = 0;
@@ -162,19 +163,15 @@ public class RtcpSenderReport extends RtcpFormat {
                 rtcpReportBlockList = new ArrayList<>();
 
                 // ReportBlock
-                int curBlockIndex = index;
-                while (curBlockIndex < dataLength) {
-                    if (dataLength - curBlockIndex < RtcpReportBlock.LENGTH) { break; }
-
+                for (int i = 0; i < resourceCount; i++) {
                     byte[] curBlockData = new byte[RtcpReportBlock.LENGTH];
-                    System.arraycopy(data, curBlockIndex, curBlockData, 0, RtcpReportBlock.LENGTH);
+                    System.arraycopy(data, index, curBlockData, 0, RtcpReportBlock.LENGTH);
                     RtcpReportBlock rtcpReceiverRtcpReportBlock = new RtcpReportBlock(curBlockData);
                     rtcpReportBlockList.add(rtcpReceiverRtcpReportBlock);
-                    curBlockIndex += RtcpReportBlock.LENGTH;
+                    index += RtcpReportBlock.LENGTH;
                 }
 
                 // Profile Specific Extensions
-                index = curBlockIndex;
                 int remainLength = dataLength - index;
                 if (remainLength > 0) {
                     profileSpecificExtensions = new byte[remainLength];

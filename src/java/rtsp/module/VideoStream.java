@@ -1,5 +1,7 @@
 package rtsp.module;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rtsp.module.base.RtspUnit;
@@ -62,9 +64,7 @@ public class VideoStream {
 
     @Override
     public String toString() {
-        return "VideoStream{" +
-                "mp4FileName='" + mp4FileName + '\'' +
-                ", resultM3U8FilePath='" + resultM3U8FilePath + '\'' +
-                '}';
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        return gson.toJson(this);
     }
 }

@@ -40,7 +40,7 @@ public class RtcpReceiverReport extends RtcpFormat {
     private List<RtcpReportBlock> rtcpReportBlockList = null;
 
     // Profile-specific extensions
-    private byte[] profileSpecificExtensions = null;
+    transient private byte[] profileSpecificExtensions = null;
 
     ////////////////////////////////////////////////////////////
 
@@ -53,26 +53,22 @@ public class RtcpReceiverReport extends RtcpFormat {
 
     public RtcpReceiverReport() {}
 
-    public RtcpReceiverReport(byte[] data) {
+    public RtcpReceiverReport(byte[] data, int resourceCount) {
         int dataLength = data.length;
         if (dataLength > 0) {
             rtcpReportBlockList = new ArrayList<>();
             int index = 0;
 
             // ReportBlock
-            int curBlockIndex = index;
-            while (curBlockIndex < dataLength) {
-                if (dataLength - curBlockIndex < RtcpReportBlock.LENGTH) { break; }
-
+            for (int i = 0; i < resourceCount; i++) {
                 byte[] curBlockData = new byte[RtcpReportBlock.LENGTH];
-                System.arraycopy(data, curBlockIndex, curBlockData, 0, RtcpReportBlock.LENGTH);
+                System.arraycopy(data, index, curBlockData, 0, RtcpReportBlock.LENGTH);
                 RtcpReportBlock rtcpReceiverRtcpReportBlock = new RtcpReportBlock(curBlockData);
                 rtcpReportBlockList.add(rtcpReceiverRtcpReportBlock);
-                curBlockIndex += RtcpReportBlock.LENGTH;
+                index += RtcpReportBlock.LENGTH;
             }
 
             // Profile Specific Extensions
-            index = curBlockIndex;
             int remainLength = dataLength - index;
             if (remainLength > 0) {
                 profileSpecificExtensions = new byte[remainLength];
@@ -129,6 +125,20 @@ public class RtcpReceiverReport extends RtcpFormat {
     public RtcpReportBlock getReportBlockByIndex(int index) {
         if (rtcpReportBlockList == null || index < 0 || index >= rtcpReportBlockList.size()) { return null; }
         return rtcpReportBlockList.get(index);
+    }
+
+    public RtcpReportBlock getReportBlockBySsrc(long ssrc) {
+        if (rtcpReportBlockList == null || ssrc <= 0) { return null; }
+
+        for (RtcpReportBlock rtcpReportBlock : rtcpReportBlockList) {
+            if (rtcpReportBlock == null) { continue; }
+
+            if (rtcpReportBlock.getSsrc() == ssrc) {
+                return rtcpReportBlock;
+            }
+        }
+
+        return null;
     }
 
     public void setReportBlockList(List<RtcpReportBlock> rtcpReportBlockList) {

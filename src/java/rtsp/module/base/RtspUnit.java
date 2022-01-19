@@ -1,6 +1,8 @@
 package rtsp.module.base;
 
 import com.fsm.StateManager;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rtsp.fsm.RtspFsmManager;
@@ -159,6 +161,10 @@ public class RtspUnit {
     }
 
     public void setCongestionLevel(int congestionLevel) {
+        if (streamer != null) {
+            logger.debug("({}) [RtspUnit] CongestionLevel=[{}] (ssrc=[{}])", rtspUnitId, congestionLevel, streamer.getSsrc());
+        }
+
         this.congestionLevel = congestionLevel;
     }
 
@@ -176,14 +182,14 @@ public class RtspUnit {
 
     public void setClientRtpListenPort(int clientRtpListenPort) {
         if (clientRtpListenPort <= 0) {
-            logger.warn("({}) RtspUnit clientRtpListenPort is not set up. ({})", rtspUnitId, clientRtpListenPort);
+            logger.warn("({}) [RtspUnit] clientRtpListenPort is not set up. ({})", rtspUnitId, clientRtpListenPort);
             return;
         }
 
         if (this.clientRtpListenPort != clientRtpListenPort) {
             this.clientRtpListenPort = clientRtpListenPort;
             ResourceManager.getInstance().restorePort(clientRtpListenPort);
-            logger.debug("({}) RtspUnit clientRtpListenPort is set up. ({})", rtspUnitId, clientRtpListenPort);
+            logger.debug("({}) [RtspUnit] clientRtpListenPort is set up. ({})", rtspUnitId, clientRtpListenPort);
         }
     }
 
@@ -215,22 +221,7 @@ public class RtspUnit {
 
     @Override
     public String toString() {
-        return "RtspUnit{" +
-                "rtspUnitId='" + rtspUnitId + '\'' +
-                ", sessionId=" + sessionId +
-                ", initiationTime=" + initiationTime +
-                ", congestionLevel=" + congestionLevel +
-                ", rtspChannel=" + rtspChannel +
-                ", rtcpChannel=" + rtcpChannel +
-                ", clientRtpListenPort=" + clientRtpListenPort +
-                ", streamer=" + streamer +
-                ", rtspFsmManager=" + rtspFsmManager +
-                ", rtspStateUnitId='" + rtspStateUnitId + '\'' +
-                ", sdp=" + sdp +
-                ", isRegistered=" + isRegistered +
-                ", fileTime=" + fileTime +
-                ", startTime=" + startTime +
-                ", endTime=" + endTime +
-                '}';
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        return gson.toJson(this);
     }
 }

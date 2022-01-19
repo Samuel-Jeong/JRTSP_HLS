@@ -103,22 +103,22 @@ public class RtcpPacket {
             int remainDataLength = data.length - headerLength;
             byte[] remainData = new byte[remainDataLength];
             System.arraycopy(data, headerLength, remainData, 0, remainDataLength);
-            rtcpFormat = getRtcpFormatByByteData(rtcpHeader.getPacketType(), remainData);
+            rtcpFormat = getRtcpFormatByByteData(rtcpHeader.getPacketType(), rtcpHeader.getResourceCount(), remainData);
         }
     }
     ////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////
     // FUNCTIONS
-    public static RtcpFormat getRtcpFormatByByteData(int packetType, byte[] data) {
+    public static RtcpFormat getRtcpFormatByByteData(int packetType, int resourceCount, byte[] data) {
         RtcpFormat rtcpFormat = null;
 
         switch (packetType) {
             case RtcpType.SENDER_REPORT:
-                rtcpFormat = new RtcpSenderReport(data);
+                rtcpFormat = new RtcpSenderReport(data, resourceCount);
                 break;
             case RtcpType.RECEIVER_REPORT:
-                rtcpFormat = new RtcpReceiverReport(data);
+                rtcpFormat = new RtcpReceiverReport(data, resourceCount);
                 break;
             case RtcpType.SOURCE_DESCRIPTION:
                 rtcpFormat = new RtcpSourceDescription(data);

@@ -7,6 +7,7 @@ import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rtsp.module.RtspManager;
+import rtsp.module.Streamer;
 import rtsp.module.base.RtspUnit;
 import rtsp.protocol.base.ByteUtil;
 import rtsp.protocol.rtcp.base.RtcpType;
@@ -71,23 +72,23 @@ public class RtcpChannelHandler extends SimpleChannelInboundHandler<DatagramPack
                 int packetType = rtcpPacket.getRtcpHeader().getPacketType();
                 switch (packetType) {
                     case RtcpType.RECEIVER_REPORT:
+                        Streamer streamer = rtspUnit.getStreamer();
+                        if (streamer == null) { return; }
+
+                        long ssrc = streamer.getSsrc();
                         RtcpReceiverReport rtcpReceiverReport = (RtcpReceiverReport) rtcpPacket.getRtcpFormat();
-                        RtcpReportBlock rtcpReportBlock = rtcpReceiverReport.getReportBlockByIndex(0);
+                        RtcpReportBlock rtcpReportBlock = rtcpReceiverReport.getReportBlockBySsrc(ssrc);
                         if (rtcpReportBlock != null) {
-                            float fractionLost = rtcpReportBlock.getFraction();
+                            float fractionLost = (float) (rtcpReportBlock.getFraction() / 100);
                             if (fractionLost >= 0 && fractionLost <= 0.01) {
                                 rtspUnit.setCongestionLevel(0);
-                            }
-                            else if (fractionLost > 0.01 && fractionLost <= 0.25) {
+                            } else if (fractionLost > 0.01 && fractionLost <= 0.25) {
                                 rtspUnit.setCongestionLevel(1);
-                            }
-                            else if (fractionLost > 0.25 && fractionLost <= 0.5) {
+                            } else if (fractionLost > 0.25 && fractionLost <= 0.5) {
                                 rtspUnit.setCongestionLevel(2);
-                            }
-                            else if (fractionLost > 0.5 && fractionLost <= 0.75) {
+                            } else if (fractionLost > 0.5 && fractionLost <= 0.75) {
                                 rtspUnit.setCongestionLevel(3);
-                            }
-                            else {
+                            } else {
                                 rtspUnit.setCongestionLevel(4);
                             }
                         }
