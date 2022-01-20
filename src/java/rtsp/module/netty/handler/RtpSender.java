@@ -6,7 +6,6 @@ import io.lindstrom.m3u8.model.MediaSegment;
 import io.lindstrom.m3u8.parser.MediaPlaylistParser;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import org.apache.commons.net.ntp.TimeStamp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rtsp.config.ConfigManager;
@@ -15,7 +14,11 @@ import rtsp.fsm.RtspEvent;
 import rtsp.module.Streamer;
 import rtsp.module.VideoStream;
 import rtsp.module.base.RtspUnit;
-import rtsp.module.sdp.base.Sdp;
+import rtsp.module.mpegts.content.MpegTsStreamer;
+import rtsp.module.mpegts.content.sinks.MTSSink;
+import rtsp.module.mpegts.content.sinks.UDPTransport;
+import rtsp.module.mpegts.content.sources.MTSSource;
+import rtsp.module.mpegts.content.sources.MTSSources;
 import rtsp.protocol.RtpPacket;
 import rtsp.service.AppInstance;
 import rtsp.service.scheduler.job.Job;
@@ -193,49 +196,77 @@ public class RtpSender extends Job {
             mediaSegmentList = streamer.getMediaSegmentList();
             String m3u8PathOnly = streamer.getM3u8PathOnly();
 
-            int totalByteSize = 0;
-            byte[] buffer = new byte[TS_PACKET_SIZE];
+            //ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            //InputStream inputStream = null;
 
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            InputStream inputStream = null;
-
-            // 1초에 90000 바이트를 보내야 함 > 2ms에 180 바이트를 보내야함
-            // 1 KB per 20 time units > 90 KB per 1800 time units
-            int delay = 5; // (ms) TODO
+            /*byte[] buffer = new byte[TS_PACKET_SIZE];
+            int timeStampInterval = Math.round((float) (90000 / TS_PACKET_SIZE));
+            int timeInterval = 7; // (ms)
+            int curTimeInterval;
             int read;
+            int totalByteSize = 0;*/
             TimeUnit timeUnit = TimeUnit.MILLISECONDS;
 
             try {
                 for (MediaSegment mediaSegment : mediaSegmentList) {
-                    int curByteSize = 0;
+                    //int curByteSize = 0;
 
+                    ///////////////////////////////////////////////////////////////////////////
                     String tsFileName = mediaSegment.uri();
                     tsFileName = m3u8PathOnly + File.separator + tsFileName;
-                    inputStream = new FileInputStream(tsFileName);
+                    //inputStream = new FileInputStream(tsFileName);
+                    ///////////////////////////////////////////////////////////////////////////
 
-                    while ((read = inputStream.read(buffer)) != -1) {
+                    ///////////////////////////////////////////////////////////////////////////
+                    // Set up packet source
+                    MTSSource movie = MTSSources.from(new File(tsFileName));
+                    MTSSink transport = UDPTransport.builder()
+                            .setAddress(streamer.getDestIp()) // Can be a multicast address
+                            .setPort(streamer.getDestPort())
+                            .setSoTimeout(5000)
+                            .setTtl(1)
+                            .build();
+                    MpegTsStreamer mpegTsStreamer = MpegTsStreamer.builder()
+                            .setSource(movie)
+                            .setSink(transport)
+                            .build();
+                    mpegTsStreamer.stream();
+
+                    /*while ((read = inputStream.read(buffer)) != -1) {
                         if (streamer.isPaused()) { break; }
+                        curTimeInterval = timeInterval * (rtspUnit.getCongestionLevel() + 1);
 
                         byteArrayOutputStream.reset();
                         byteArrayOutputStream.write(buffer, 0, read);
                         byte[] curData = byteArrayOutputStream.toByteArray();
-                        sendRtpPacket(streamer, curData);
+                        sendRtpPacket(streamer, curData, timeStampInterval);
                         curByteSize += curData.length;
 
-                        timeUnit.sleep((long) delay * (rtspUnit.getCongestionLevel() + 1));
+                        timeUnit.sleep(curTimeInterval);
+                    }*/
+                    ///////////////////////////////////////////////////////////////////////////
+
+                    //totalByteSize += curByteSize;
+                    //logger.debug("({}) ({}) ({}) [SEND TS BYTES: {}] (bitrate={}, {})", getName(), rtspUnit.getRtspUnitId(), streamer.getSessionId(), curByteSize, mediaSegment.bitrate(), mediaSegment);
+
+                    //inputStream.close();
+                    //inputStream = null;
+
+                    if (streamer.isPaused()) {
+                        logger.warn("({}) ({}) ({}) [FINISHED BY PAUSE]", getName(), rtspUnit.getRtspUnitId(), streamer.getSessionId());
+                        break;
                     }
 
-                    totalByteSize += curByteSize;
-                    logger.debug("({}) ({}) ({}) [SEND TS BYTES: {}] (bitrate={}, {})", getName(), rtspUnit.getRtspUnitId(), streamer.getSessionId(), curByteSize, mediaSegment.bitrate(), mediaSegment);
-
-                    inputStream.close();
-                    inputStream = null;
-
-                    if (streamer.isPaused()) { break; }
+                    logger.debug("({}) ({}) ({}) [SEND TS] (bitrate={}, {})", getName(), rtspUnit.getRtspUnitId(), streamer.getSessionId(), mediaSegment.bitrate(), mediaSegment);
+                    long sec = (long) mediaSegment.duration();
+                    long msec = (long) ((mediaSegment.duration() - sec) * 1000);
+                    long timeout = (sec - 1) * 1000 + msec;
+                    logger.debug("SLEEP: {} (-1)", timeout);
+                    timeUnit.sleep(timeout);
                 }
-
-                logger.debug("({}) ({}) ({}) [SEND TOTAL BYTES: {}]", getName(), rtspUnit.getRtspUnitId(), streamer.getSessionId(), totalByteSize);
             } finally {
+                /*logger.debug("({}) ({}) ({}) [SEND TOTAL BYTES: {}]", getName(), rtspUnit.getRtspUnitId(), streamer.getSessionId(), totalByteSize);
+
                 try {
                     byteArrayOutputStream.close();
                 } catch (IOException e) {
@@ -248,7 +279,7 @@ public class RtpSender extends Job {
                     }
                 } catch (IOException e) {
                     // ignore
-                }
+                }*/
             }
             ///////////////////////////////////////////////////////////////////////////
         } catch (Exception e) {
@@ -256,13 +287,9 @@ public class RtpSender extends Job {
         }
     }
 
-    // TODO
-    private void sendRtpPacket(Streamer streamer, byte[] data) {
+    private void sendRtpPacket(Streamer streamer, byte[] data, long timeStampInterval) {
         int curSeqNum = streamer.getCurSeqNum();
         long curTimeStamp = streamer.getCurTimeStamp();
-        /*if (curTimeStamp <= 0) {
-            curTimeStamp = ((int) TimeStamp.getCurrentTime().getTime() / 1000);
-        }*/
 
         rtpPacket.setValue(
                 2, 0, 0, 0, 0, ConfigManager.MP2T_TYPE,
@@ -277,12 +304,8 @@ public class RtpSender extends Job {
                 streamer.getDestPort()
         );
 
-        streamer.setCurSeqNum(curSeqNum + 1); // TODO
-        streamer.setCurTimeStamp(curTimeStamp + 1000);
-
-        /*logger.debug("({}) ({}) ({}) << Send TS RTP [{}] (destIp={}, destPort={}, totalSize={}, payloadSize={})",
-                name, rtspUnitId, streamer.getSessionId(), rtpPacket, streamer.getDestIp(), streamer.getDestPort(), totalRtpData.length, data.length
-        );*/
+        streamer.setCurSeqNum(curSeqNum + 1);
+        streamer.setCurTimeStamp(curTimeStamp + timeStampInterval);
     }
 
 }

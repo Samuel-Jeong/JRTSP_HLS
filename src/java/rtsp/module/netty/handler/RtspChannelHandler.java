@@ -104,15 +104,17 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                     logger.debug("({}) ({}) () < OPTIONS (curState={})", name, rtspUnit.getRtspUnitId(), curState);
 
                     if (curState.equals(RtspState.REGISTER) || curState.equals(RtspState.PLAY) || curState.equals(RtspState.PAUSE)) {
-                        rtspStateHandler.fire(
-                                RtspEvent.OPTIONS,
-                                rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
-                        );
-
                         String sessionId = req.headers().get(RtspHeaderNames.SESSION);
                         if (sessionId != null) {
+                            long prevSessionId = rtspUnit.getSessionId();
                             rtspUnit.setSessionId(Long.parseLong(sessionId));
+                            logger.debug("({}) ({}) () Previous SessionId is [{}]. SessionId is updated. ({})", name, rtspUnit.getRtspUnitId(), prevSessionId, sessionId);
                         } else {
+                            rtspStateHandler.fire(
+                                    RtspEvent.OPTIONS,
+                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
+                            );
+
                             long newSessionId = random.nextInt(1000000);
                             logger.warn("({}) ({}) () SessionId is null. New sessionId is created. ({})", name, rtspUnit.getRtspUnitId(), newSessionId);
                             rtspUnit.setSessionId(newSessionId);
@@ -625,6 +627,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         streamer.getStopWatch().stop();
                         long realEndTime = streamer.getStopWatch().getTime() / 1000;
                         streamer.setPausedTime(realEndTime);
+                        streamer.resetSeqAndTime();
 
                         double curFileEndTime = rtspUnit.getEndTime();
                         if (curFileEndTime <= 0) {

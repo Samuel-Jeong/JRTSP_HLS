@@ -74,12 +74,17 @@ public class Streamer {
 
         ssrc = random.nextInt(Integer.MAX_VALUE);
         curSeqNum = random.nextInt(100);
-        curTimeStamp = 0;
+        curTimeStamp = (int) (System.currentTimeMillis() / 1000);
 
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }
 
     /////////////////////////////////////////////////////////////////////
+
+    public void resetSeqAndTime() {
+        curSeqNum = random.nextInt(100);
+        curTimeStamp = (int) (System.currentTimeMillis() / 1000);
+    }
 
     public Streamer init() {
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
