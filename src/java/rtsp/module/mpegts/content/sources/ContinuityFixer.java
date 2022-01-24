@@ -1,7 +1,7 @@
 package rtsp.module.mpegts.content.sources;
 
 import com.google.common.collect.Maps;
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -18,20 +18,20 @@ import java.util.Map;
  * <li> Rewrite the continuity counter to be continuous with the previous source</li>
  * </ol>
  * <p>
- * Code using this class should call {@link #fixContinuity(MTSPacket)} for each source packet,
+ * Code using this class should call {@link #fixContinuity(MpegTsPacket)} for each source packet,
  * then {@link #nextSource()} after the last packet of the current source and before the first packet of the next source.
  */
 public class ContinuityFixer {
-    private final Map<Integer, MTSPacket> pcrPackets;
-    private final Map<Integer, MTSPacket> allPackets;
+    private final Map<Integer, MpegTsPacket> pcrPackets;
+    private final Map<Integer, MpegTsPacket> allPackets;
     private final Map<Integer, Long> ptss;
     private final Map<Integer, Long> lastPTSsOfPreviousSource;
     private final Map<Integer, Long> lastPCRsOfPreviousSource;
     private final Map<Integer, Long> firstPCRsOfCurrentSource;
     private final Map<Integer, Long> firstPTSsOfCurrentSource;
 
-    private Map<Integer, MTSPacket> lastPacketsOfPreviousSource = Maps.newHashMap();
-    private Map<Integer, MTSPacket> firstPacketsOfCurrentSource = Maps.newHashMap();
+    private Map<Integer, MpegTsPacket> lastPacketsOfPreviousSource = Maps.newHashMap();
+    private Map<Integer, MpegTsPacket> firstPacketsOfCurrentSource = Maps.newHashMap();
     private Map<Integer, Integer> continuityFixes = Maps.newHashMap();
 
     private boolean firstSource;
@@ -59,7 +59,7 @@ public class ContinuityFixer {
         lastPTSsOfPreviousSource.clear();
         firstPacketsOfCurrentSource.clear();
         lastPacketsOfPreviousSource.clear();
-        for (MTSPacket mtsPacket : pcrPackets.values()) {
+        for (MpegTsPacket mtsPacket : pcrPackets.values()) {
             lastPCRsOfPreviousSource.put(mtsPacket.getPid(), mtsPacket.getAdaptationField().getPcr().getValue());
         }
         lastPTSsOfPreviousSource.putAll(ptss);
@@ -77,13 +77,13 @@ public class ContinuityFixer {
      *
      * @param tsPacket The packet to fix.
      */
-    public void fixContinuity(MTSPacket tsPacket) {
+    public void fixContinuity(MpegTsPacket tsPacket) {
         int pid = tsPacket.getPid();
         allPackets.put(pid, tsPacket);
         if (!firstPacketsOfCurrentSource.containsKey(pid)) {
             firstPacketsOfCurrentSource.put(pid, tsPacket);
             if (!firstSource) {
-                MTSPacket lastPacketOfPreviousSource = lastPacketsOfPreviousSource.get(pid);
+                MpegTsPacket lastPacketOfPreviousSource = lastPacketsOfPreviousSource.get(pid);
                 int continuityFix = lastPacketOfPreviousSource == null ? 0 : lastPacketOfPreviousSource.getContinuityCounter() - tsPacket.getContinuityCounter();
                 if (tsPacket.isContainsPayload()) {
                     continuityFix++;
@@ -98,7 +98,7 @@ public class ContinuityFixer {
         fixPCR(tsPacket, pid);
     }
 
-    private void fixPCR(MTSPacket tsPacket, int pid) {
+    private void fixPCR(MpegTsPacket tsPacket, int pid) {
         if (tsPacket.isAdaptationFieldExist() && tsPacket.getAdaptationField() != null) {
             if (tsPacket.getAdaptationField().isPcrFlag()) {
                 if (!firstPCRsOfCurrentSource.containsKey(pid)) {
@@ -110,7 +110,7 @@ public class ContinuityFixer {
         }
     }
 
-    private void fixPTS(MTSPacket tsPacket, int pid) {
+    private void fixPTS(MpegTsPacket tsPacket, int pid) {
         if (tsPacket.isContainsPayload()) {
             ByteBuffer payload = tsPacket.getPayload();
             if (((payload.get(0) & 0xff) == 0) && ((payload.get(1) & 0xff) == 0) && ((payload.get(2) & 0xff) == 1)) {
@@ -190,7 +190,7 @@ public class ContinuityFixer {
         return 0;
     }
 
-    private void rewritePCR(MTSPacket tsPacket) {
+    private void rewritePCR(MpegTsPacket tsPacket) {
         if (firstSource) {
             return;
         }

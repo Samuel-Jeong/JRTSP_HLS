@@ -4,7 +4,7 @@ package rtsp.module.mpegts.content;
 import java.nio.ByteBuffer;
 
 public abstract class PacketSupport {
-	protected ByteBuffer buffer;
+	transient protected ByteBuffer buffer;
 	protected boolean dirty;
 
 	public PacketSupport() {

@@ -4,7 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import java.util.Collection;
 import java.util.List;
@@ -56,11 +56,11 @@ public class MultiMTSSource extends AbstractMTSSource {
     }
 
     @Override
-    protected MTSPacket nextPacketInternal() throws Exception {
+    protected MpegTsPacket nextPacketInternal() throws Exception {
         if (currentSource == null) {
             return null;
         }
-        MTSPacket tsPacket = currentSource.nextPacket();
+        MpegTsPacket tsPacket = currentSource.nextPacket();
         if (tsPacket != null) {
             if (fixContinuity) {
                 continuityFixer.fixContinuity(tsPacket);

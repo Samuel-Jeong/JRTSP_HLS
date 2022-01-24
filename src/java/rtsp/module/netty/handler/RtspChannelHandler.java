@@ -508,6 +508,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
 
                         ///////////////////////////////////////////////////////////////////////////
                         // RTP SENDER THREAD
+                        streamer.setPaused(false);
                         RtpSender rtpSender = new RtpSender(
                                 rtspUnitId,
                                 0, 0, TimeUnit.MILLISECONDS,
@@ -517,11 +518,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 rtspStateHandler, rtspUnit, streamer, destPort
                         );
                         ScheduleManager.getInstance().startJob(ServiceManager.MAIN_SCHEDULE_JOB, rtpSender);
-                        //sendData(ffmpegManager, video, fileTime, npt1, npt2, rtspStateHandler, rtspUnit, streamer, destPort);
                         ///////////////////////////////////////////////////////////////////////////
-
-                        streamer.getStopWatch().reset();
-                        streamer.getStopWatch().start();
                     }
                 }
                 ///////////////////////////////////////////////////////////////////////////
@@ -614,7 +611,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                         }
 
                         if (NettyChannelManager.getInstance().getStreamer(rtspUnitId, streamer.getSessionId(), listenIp, listenRtspPort) != null) {
-                            logger.debug("({}) ({}) ({}) Stop the streaming. (rtpDestPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), streamer.getDestPort());
+                            logger.debug("({}) ({}) ({}) Pause the streaming. (rtpDestPort={})", name, rtspUnit.getRtspUnitId(), streamer.getSessionId(), streamer.getDestPort());
                             NettyChannelManager.getInstance().pauseStreaming(
                                     rtspUnitId,
                                     streamer.getSessionId(),
@@ -622,30 +619,9 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                     listenRtspPort
                             );
                         }
-                        ///////////////////////////////////////////////////////////////////////////
 
-                        streamer.getStopWatch().stop();
-                        long realEndTime = streamer.getStopWatch().getTime() / 1000;
-                        streamer.setPausedTime(realEndTime);
                         streamer.resetSeqAndTime();
-
-                        double curFileEndTime = rtspUnit.getEndTime();
-                        if (curFileEndTime <= 0) {
-                            curFileEndTime = rtspUnit.getFileTime();
-                        }
-
-                        if (realEndTime >= curFileEndTime) {
-                            logger.warn("({}) ({}) ({}) Fail to process PAUSE. EndTime is unmatched. (realEndTime={}, curFileEndTime={})",
-                                    name, rtspUnit.getRtspUnitId(), streamer.getSessionId(),
-                                    realEndTime, curFileEndTime
-                            );
-                            rtspStateHandler.fire(
-                                    RtspEvent.PAUSE_FAIL,
-                                    rtspUnit.getStateManager().getStateUnit(rtspUnit.getRtspStateUnitId())
-                            );
-                            sendFailResponse(name, rtspUnit, null, ctx, req, res, curSessionId, RtspResponseStatuses.BAD_REQUEST);
-                            return;
-                        }
+                        ///////////////////////////////////////////////////////////////////////////
 
                         res.setStatus(RtspResponseStatuses.OK);
                         res.headers().add(

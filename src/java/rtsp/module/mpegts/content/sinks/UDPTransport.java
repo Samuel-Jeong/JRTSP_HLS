@@ -1,7 +1,7 @@
 package rtsp.module.mpegts.content.sinks;
 
 import com.google.common.base.Preconditions;
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -32,7 +32,7 @@ public class UDPTransport implements MTSSink {
     }
 
     @Override
-    public void send(MTSPacket packet) throws IOException {
+    public void send(MpegTsPacket packet) throws IOException {
         ByteBuffer buffer = packet.getBuffer();
         Preconditions.checkArgument(buffer.hasArray());
         DatagramPacket datagramPacket = new DatagramPacket(buffer.array(), buffer.arrayOffset(), buffer.limit(), inetSocketAddress);

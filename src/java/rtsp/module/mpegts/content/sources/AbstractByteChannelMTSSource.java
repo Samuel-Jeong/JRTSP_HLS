@@ -2,9 +2,9 @@ package rtsp.module.mpegts.content.sources;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rtsp.module.mpegts.ioutils.NIOUtils;
 import rtsp.module.mpegts.content.Constants;
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
+import rtsp.module.mpegts.ioutils.NIOUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,7 +35,7 @@ public abstract class AbstractByteChannelMTSSource<T extends ByteChannel> extend
     }
 
     @Override
-    protected MTSPacket nextPacketInternal() throws IOException {
+    protected MpegTsPacket nextPacketInternal() throws IOException {
         ByteBuffer packetBuffer = null;
         while (true) {
             boolean foundFirstMarker = false;
@@ -101,7 +101,7 @@ public abstract class AbstractByteChannelMTSSource<T extends ByteChannel> extend
             if (packetBuffer != null) {
                 // Parse the packet
                 try {
-                    return new MTSPacket(packetBuffer);
+                    return new MpegTsPacket(packetBuffer);
                 } catch (Exception e) {
                     packetBuffer = null;
                     log.warn("Error parsing packet", e);

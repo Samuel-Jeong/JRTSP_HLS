@@ -1,6 +1,6 @@
 package rtsp.module.mpegts.content.sinks;
 
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import java.nio.channels.ByteChannel;
 
@@ -17,7 +17,7 @@ public class ByteChannelSink implements MTSSink {
     }
 
     @Override
-    public void send(MTSPacket packet) throws Exception {
+    public void send(MpegTsPacket packet) throws Exception {
         byteChannel.write(packet.getBuffer());
     }
 

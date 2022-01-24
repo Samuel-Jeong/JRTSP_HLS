@@ -11,8 +11,15 @@ import rtsp.module.base.RtspUnit;
 import rtsp.module.netty.NettyChannelManager;
 import rtsp.service.scheduler.schedule.ScheduleManager;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import static java.nio.file.StandardOpenOption.*;
 
 /**
  * @class public class ServiceManager
@@ -23,6 +30,11 @@ public class ServiceManager {
     private static final Logger logger = LoggerFactory.getLogger(ServiceManager.class);
 
     public static final String MAIN_SCHEDULE_JOB = "MAIN";
+
+    private final String tmpdir = System.getProperty("java.io.tmpdir");
+    private final File lockFile = new File(tmpdir, System.getProperty("lock_file", "urtsp_server.lock"));
+    private FileChannel fileChannel;
+    private FileLock lock;
 
     private static ServiceManager serviceManager = null;
 
@@ -50,6 +62,9 @@ public class ServiceManager {
     ////////////////////////////////////////////////////////////////////////////////
 
     private boolean start () {
+        // System Lock
+        systemLock();
+
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
         if (ScheduleManager.getInstance().initJob(MAIN_SCHEDULE_JOB, configManager.getStreamThreadPoolSize(), configManager.getStreamThreadPoolSize() * 2)) {
             ScheduleManager.getInstance().startJob(MAIN_SCHEDULE_JOB,
@@ -103,6 +118,9 @@ public class ServiceManager {
         RtspManager.getInstance().closeAllRtspUnits();
         ResourceManager.getInstance().releaseResource();
 
+        // System Unlock
+        systemUnLock();
+
         isQuit = true;
         logger.debug("| All services are closed.");
     }
@@ -136,6 +154,37 @@ public class ServiceManager {
     public void setExternalClientRtspUnitId(String externalClientRtspUnitId) {
         this.externalClientRtspUnitId = externalClientRtspUnitId;
     }
+
+    private void systemLock () {
+        try {
+            fileChannel = FileChannel.open(lockFile.toPath(), CREATE, READ, WRITE);
+            lock = fileChannel.tryLock();
+            if (lock == null) {
+                logger.error("RTSP SERVER process is already running.");
+                Thread.sleep(500L);
+                System.exit(1);
+            }
+        } catch (Exception e) {
+            logger.error("ServiceManager.systemLock.Exception.", e);
+        }
+    }
+
+    private void systemUnLock () {
+        try {
+            if (lock != null) {
+                lock.release();
+            }
+
+            if (fileChannel != null) {
+                fileChannel.close();
+            }
+
+            Files.delete(lockFile.toPath());
+        } catch (IOException e) {
+            //ignore
+        }
+    }
+
 
     ////////////////////////////////////////////////////////////////////////////////
 

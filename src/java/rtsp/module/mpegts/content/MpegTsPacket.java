@@ -1,11 +1,13 @@
 package rtsp.module.mpegts.content;
 
 import com.google.common.base.Preconditions;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import rtsp.module.mpegts.ioutils.NIOUtils;
 
 import java.nio.ByteBuffer;
 
-public class MTSPacket extends PacketSupport {
+public class MpegTsPacket extends PacketSupport {
     private boolean transportErrorIndicator;    // Transport Error Indicator (TEI)
     private boolean payloadUnitStartIndicator;    // Payload Unit Start Indicator
     private boolean transportPriority;            // Transport Priority
@@ -16,9 +18,9 @@ public class MTSPacket extends PacketSupport {
     private int continuityCounter;                // Continuity counter
 
     private AdaptationField adaptationField;
-    private ByteBuffer payload;
+    transient private ByteBuffer payload;
 
-    public MTSPacket(boolean transportErrorIndicator, boolean payloadUnitStartIndicator, boolean transportPriority, int pid, int scramblingControl, int continuityCounter) {
+    public MpegTsPacket(boolean transportErrorIndicator, boolean payloadUnitStartIndicator, boolean transportPriority, int pid, int scramblingControl, int continuityCounter) {
         super();
         this.buffer = ByteBuffer.allocate(Constants.MPEGTS_PACKET_SIZE);
         this.transportErrorIndicator = transportErrorIndicator;
@@ -31,7 +33,7 @@ public class MTSPacket extends PacketSupport {
         this.containsPayload = false;
     }
 
-    public MTSPacket(ByteBuffer buffer) {
+    public MpegTsPacket(ByteBuffer buffer) {
         super(buffer);
     }
 
@@ -329,7 +331,7 @@ public class MTSPacket extends PacketSupport {
     }
 
     public static class AdaptationField {
-        private final MTSPacket packet;
+        private final MpegTsPacket packet;
         private boolean discontinuityIndicator;        // Discontinuity indicator
         private boolean randomAccessIndicator;        // Random Access indicator
         private boolean elementaryStreamPriorityIndicator;    // Elementary stream priority indicator
@@ -344,7 +346,7 @@ public class MTSPacket extends PacketSupport {
         private byte[] privateData;                    // Private data
         private byte[] extension;                    // Extension
 
-        public AdaptationField(MTSPacket packet, boolean discontinuityIndicator, boolean randomAccessIndicator, boolean elementaryStreamPriorityIndicator, boolean pcrFlag, boolean opcrFlag, boolean splicingPointFlag, boolean transportPrivateDataFlag, boolean adaptationFieldExtensionFlag, PCR pcr, PCR opcr, byte spliceCountdown, byte[] privateData, byte[] extension) {
+        public AdaptationField(MpegTsPacket packet, boolean discontinuityIndicator, boolean randomAccessIndicator, boolean elementaryStreamPriorityIndicator, boolean pcrFlag, boolean opcrFlag, boolean splicingPointFlag, boolean transportPrivateDataFlag, boolean adaptationFieldExtensionFlag, PCR pcr, PCR opcr, byte spliceCountdown, byte[] privateData, byte[] extension) {
             this.packet = packet;
             this.discontinuityIndicator = discontinuityIndicator;
             this.randomAccessIndicator = randomAccessIndicator;
@@ -603,5 +605,11 @@ public class MTSPacket extends PacketSupport {
                 buffer.put((byte) (extension & 0xff));
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        return gson.toJson(this);
     }
 }

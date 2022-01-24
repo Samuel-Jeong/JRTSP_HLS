@@ -18,7 +18,7 @@ public class MpegTsStreamer {
     private final MTSSource source;
     private final MTSSink sink;
 
-    private ArrayBlockingQueue<MTSPacket> buffer;
+    private ArrayBlockingQueue<MpegTsPacket> buffer;
     private final int bufferSize;
     private boolean endOfSourceReached;
     private boolean streamingShouldStop;
@@ -75,7 +75,7 @@ public class MpegTsStreamer {
 
     private void internalStream() {
         boolean resetState = false;
-        MTSPacket packet;
+        MpegTsPacket packet;
         long packetCount = 0;
         long pcrCount = 0;
         //long pcrPidPacketCount = 0;
@@ -121,9 +121,11 @@ public class MpegTsStreamer {
                 int pointer = payload.get() & 0xff;
                 payload.position(payload.position() + pointer);
                 patSection = PATSection.parse(payload);
-                for (Integer pmtPid : pmtSection.keySet()) {
-                    if (!patSection.getPrograms().containsValue(pmtPid)) {
-                        pmtSection.remove(pmtPid);
+                if (patSection != null) {
+                    for (Integer pmtPid : pmtSection.keySet()) {
+                        if (!patSection.getPrograms().containsValue(pmtPid)) {
+                            pmtSection.remove(pmtPid);
+                        }
                     }
                 }
             }
@@ -238,7 +240,7 @@ public class MpegTsStreamer {
     }
 
     private void preBuffer() throws Exception {
-        MTSPacket packet;
+        MpegTsPacket packet;
         int packetNumber = 0;
         while ((packetNumber < bufferSize) && (packet = source.nextPacket()) != null) {
             buffer.add(packet);
@@ -248,7 +250,7 @@ public class MpegTsStreamer {
 
     private void fillBuffer() {
         try {
-            MTSPacket packet;
+            MpegTsPacket packet;
             while (!streamingShouldStop && (packet = source.nextPacket()) != null) {
                 boolean put = false;
                 while (!put) {

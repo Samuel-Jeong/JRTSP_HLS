@@ -1,9 +1,9 @@
 package rtsp.module.mpegts.content.sources;
 
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 public interface MTSSource {
-    MTSPacket nextPacket() throws Exception;
+    MpegTsPacket nextPacket() throws Exception;
 
     void close() throws Exception;
 }

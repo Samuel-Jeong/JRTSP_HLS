@@ -7,7 +7,9 @@ import io.lindstrom.m3u8.parser.ParsingMode;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.FFprobe;
+import net.bramp.ffmpeg.ProcessFunction;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
+import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.mp4parser.Container;
 import org.mp4parser.IsoFile;
 import org.mp4parser.muxer.FileDataSourceImpl;
@@ -19,10 +21,15 @@ import org.slf4j.LoggerFactory;
 import rtsp.config.ConfigManager;
 import rtsp.service.AppInstance;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,6 +50,35 @@ public class FfmpegManager {
 
     public FfmpegManager() {
         //Nothing
+    }
+
+    public List<String> getFrameLineList(String srcFilePath) {
+        List<String> frameLineList = new ArrayList<>();
+
+        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        String[] cmd = new String[] {
+                configManager.getFfprobePath(),
+                // -select_streams v -show_entries "frame=pkt_pts_time,pkt_size,pict_type" -of csv
+                "-select_streams", "v",
+                "-show_entries", "frame=pkt_size,pict_type",
+                "-of", "csv",
+                srcFilePath
+        };
+
+        try {
+            Process process = new ProcessBuilder(cmd).start();
+            BufferedReader stdOut = new BufferedReader( new InputStreamReader(process.getInputStream()) );
+
+            String line;
+            while( (line = stdOut.readLine()) != null ) {
+                frameLineList.add(line);
+            }
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.getFrameLineList.Exception", e);
+            return Collections.emptyList();
+        }
+
+        return frameLineList;
     }
 
     public double getFileTime(String srcFilePath) {

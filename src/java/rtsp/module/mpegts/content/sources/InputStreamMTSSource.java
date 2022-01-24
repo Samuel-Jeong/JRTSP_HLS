@@ -2,7 +2,7 @@ package rtsp.module.mpegts.content.sources;
 
 import com.google.common.base.Preconditions;
 import rtsp.module.mpegts.content.Constants;
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,7 +21,7 @@ public class InputStreamMTSSource extends AbstractMTSSource {
     }
 
     @Override
-    protected MTSPacket nextPacketInternal() throws IOException {
+    protected MpegTsPacket nextPacketInternal() throws IOException {
         byte[] barray = new byte[Constants.MPEGTS_PACKET_SIZE];
         if (inputStream.read(barray) != Constants.MPEGTS_PACKET_SIZE) {
             inputStream.close();
@@ -29,7 +29,7 @@ public class InputStreamMTSSource extends AbstractMTSSource {
         }
 
         // Parse the packet
-        return new MTSPacket(ByteBuffer.wrap(barray));
+        return new MpegTsPacket(ByteBuffer.wrap(barray));
     }
 
     @Override

@@ -3,7 +3,7 @@ package rtsp.module.mpegts.content.sources;
 import com.google.common.base.Preconditions;
 import com.google.common.io.ByteSource;
 import rtsp.module.mpegts.content.Constants;
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -34,7 +34,7 @@ public class ByteSourceMTSSource extends AbstractMTSSource implements Resettable
     }
 
     @Override
-    protected MTSPacket nextPacketInternal() throws Exception {
+    protected MpegTsPacket nextPacketInternal() throws Exception {
         if (stream == null) {
             stream = byteSource.openBufferedStream();
         }
@@ -46,7 +46,7 @@ public class ByteSourceMTSSource extends AbstractMTSSource implements Resettable
         }
 
         // Parse the packet
-        return new MTSPacket(ByteBuffer.wrap(barray));
+        return new MpegTsPacket(ByteBuffer.wrap(barray));
     }
 
     @Override

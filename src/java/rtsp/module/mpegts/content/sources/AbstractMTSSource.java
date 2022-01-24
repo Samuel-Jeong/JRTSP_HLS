@@ -1,12 +1,12 @@
 package rtsp.module.mpegts.content.sources;
 
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 public abstract class AbstractMTSSource implements MTSSource {
     private boolean closed;
 
     @Override
-    public final MTSPacket nextPacket() throws Exception {
+    public final MpegTsPacket nextPacket() throws Exception {
         if (closed) {
             throw new IllegalStateException("Source is closed");
         }
@@ -26,7 +26,7 @@ public abstract class AbstractMTSSource implements MTSSource {
         return closed;
     }
 
-    protected abstract MTSPacket nextPacketInternal() throws Exception;
+    protected abstract MpegTsPacket nextPacketInternal() throws Exception;
 
     protected abstract void closeInternal() throws Exception;
 

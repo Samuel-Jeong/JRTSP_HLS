@@ -1,6 +1,6 @@
 package rtsp.module.mpegts.content.sources;
 
-import rtsp.module.mpegts.content.MTSPacket;
+import rtsp.module.mpegts.content.MpegTsPacket;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -23,8 +23,8 @@ public class LoopingMTSSource extends AbstractMTSSource {
     }
 
     @Override
-    protected MTSPacket nextPacketInternal() throws Exception {
-        MTSPacket packet = source.nextPacket();
+    protected MpegTsPacket nextPacketInternal() throws Exception {
+        MpegTsPacket packet = source.nextPacket();
         if (packet == null) {
             currentLoop++;
             if (maxLoops == null || (currentLoop <= maxLoops)) {

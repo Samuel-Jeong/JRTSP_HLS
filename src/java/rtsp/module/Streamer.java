@@ -60,8 +60,6 @@ public class Streamer {
     private String m3u8PathOnly = null;
 
     private final AtomicBoolean isPaused = new AtomicBoolean(false);
-    private final AtomicLong pausedTime = new AtomicLong(0);
-    private final StopWatch stopWatch = new StopWatch();
 
     /////////////////////////////////////////////////////////////////////
 
@@ -127,11 +125,11 @@ public class Streamer {
 
             if (isPaused.get()) {
                 isPaused.set(false);
-                setPausedTime(0);
             }
             //logger.debug("({}) Streamer is started. ({})", sessionId, this);
         } catch (Exception e) {
-            logger.warn("({}) Streamer.start.Exception", sessionId, e);
+            //logger.warn("({}) Streamer.start.Exception", sessionId, e);
+            stop();
         }
     }
 
@@ -147,17 +145,8 @@ public class Streamer {
         return isPaused.get();
     }
 
-    public StopWatch getStopWatch() {
-        return stopWatch;
-    }
-
-    public void setPausedTime (long pausedTime) {
-        this.pausedTime.set(pausedTime);
-        //logger.debug("({}) Set paused time. ({})", sessionId, pausedTime);
-    }
-
-    public long getPausedTime () {
-        return pausedTime.get();
+    public void setPaused (boolean isPaused) {
+        this.isPaused.set(isPaused);
     }
 
     public void pause () {
@@ -180,7 +169,6 @@ public class Streamer {
     public void stop () {
         close();
         isPaused.set(true);
-        setPausedTime(0);
 
         if (AppInstance.getInstance().getConfigManager().isDeleteM3u8()) {
             if (m3u8File != null) {
@@ -365,6 +353,7 @@ public class Streamer {
 
         if (!isActive()) {
             logger.warn("({}) Fail to send the message. Channel is inactive. (ip={}, port={})", sessionId, ip, port);
+            close();
             return;
         }
 
