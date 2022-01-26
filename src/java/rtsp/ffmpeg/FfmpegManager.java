@@ -7,9 +7,7 @@ import io.lindstrom.m3u8.parser.ParsingMode;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.FFprobe;
-import net.bramp.ffmpeg.ProcessFunction;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
-import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.mp4parser.Container;
 import org.mp4parser.IsoFile;
 import org.mp4parser.muxer.FileDataSourceImpl;
@@ -40,7 +38,45 @@ public class FfmpegManager {
 
     private static final Logger logger = LoggerFactory.getLogger(FfmpegManager.class);
 
+    private final ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+
     //public static final String FFMPEG_TAG = "ffmpeg";
+    private final String[] ffprobeFrameLineCmd = new String[] {
+            configManager.getFfprobePath(),
+            // -select_streams v -show_entries "frame=pkt_pts_time,pkt_size,pict_type" -of csv
+            "-select_streams", "v",
+            "-show_entries", "frame=pkt_size,pict_type",
+            "-of", "csv",
+            "-"
+    };
+
+    private final String[] ffprobeFrameStartTimeCmd = new String[] {
+            configManager.getFfprobePath(),
+            // -select_streams v -show_entries "format=start_time" -of csv
+            "-select_streams", "v",
+            "-show_entries", "format=start_time",
+            "-of", "csv",
+            "-"
+    };
+
+    private final String[] ffprobeFpsCmd = new String[] {
+            configManager.getFfprobePath(),
+            // -select_streams v -show_entries "stream=r_frame_rate" -of csv
+            "-select_streams", "v",
+            "-show_entries", "stream=r_frame_rate",
+            "-of", "csv",
+            "-"
+    };
+
+    // tbn = the time base in AVStream that has come from the container > Sampling rate
+    private final String[] ffprobeTbnCmd = new String[] {
+            configManager.getFfprobePath(),
+            // -select_streams v -show_entries "stream=time_base" -of csv
+            "-select_streams", "v",
+            "-show_entries", "stream=time_base",
+            "-of", "csv",
+            "-"
+    };
 
     private FFmpeg ffmpeg = null;
     private FFprobe ffprobe = null;
@@ -55,19 +91,11 @@ public class FfmpegManager {
     public List<String> getFrameLineList(String srcFilePath) {
         List<String> frameLineList = new ArrayList<>();
 
-        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
-        String[] cmd = new String[] {
-                configManager.getFfprobePath(),
-                // -select_streams v -show_entries "frame=pkt_pts_time,pkt_size,pict_type" -of csv
-                "-select_streams", "v",
-                "-show_entries", "frame=pkt_size,pict_type",
-                "-of", "csv",
-                srcFilePath
-        };
+        ffprobeFrameLineCmd[ffprobeFrameLineCmd.length - 1] = srcFilePath;
 
         try {
-            Process process = new ProcessBuilder(cmd).start();
-            BufferedReader stdOut = new BufferedReader( new InputStreamReader(process.getInputStream()) );
+            Process process = new ProcessBuilder(ffprobeFrameLineCmd).start();
+            BufferedReader stdOut = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
             String line;
             while( (line = stdOut.readLine()) != null ) {
@@ -79,6 +107,60 @@ public class FfmpegManager {
         }
 
         return frameLineList;
+    }
+
+    public String getFrameStartTime(String srcFilePath) {
+        ffprobeFrameStartTimeCmd[ffprobeFrameStartTimeCmd.length - 1] = srcFilePath;
+
+        try {
+            Process process = new ProcessBuilder(ffprobeFrameStartTimeCmd).start();
+            BufferedReader stdOut = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            String line;
+            if ( (line = stdOut.readLine()) != null ) {
+                return line;
+            }
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.getFrameStartTime.Exception", e);
+        }
+
+        return null;
+    }
+
+    public String getFps(String srcFilePath) {
+        ffprobeFpsCmd[ffprobeFpsCmd.length - 1] = srcFilePath;
+
+        try {
+            Process process = new ProcessBuilder(ffprobeFpsCmd).start();
+            BufferedReader stdOut = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            String line;
+            if ( (line = stdOut.readLine()) != null ) {
+                return line;
+            }
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.getFps.Exception", e);
+        }
+
+        return null;
+    }
+
+    public String getTbn(String srcFilePath) {
+        ffprobeTbnCmd[ffprobeTbnCmd.length - 1] = srcFilePath;
+
+        try {
+            Process process = new ProcessBuilder(ffprobeTbnCmd).start();
+            BufferedReader stdOut = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            String line;
+            if ( (line = stdOut.readLine()) != null ) {
+                return line;
+            }
+        } catch (Exception e) {
+            logger.warn("FfmpegManager.getTbn.Exception", e);
+        }
+
+        return null;
     }
 
     public double getFileTime(String srcFilePath) {

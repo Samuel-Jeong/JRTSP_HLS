@@ -10,7 +10,6 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.nio.NioDatagramChannel;
-import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rtsp.config.ConfigManager;
@@ -23,7 +22,6 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @class public class Streamer
@@ -118,9 +116,9 @@ public class Streamer {
 
             InetAddress address = InetAddress.getByName(destIp);
             ChannelFuture channelFuture = b.connect(address, destPort).sync();
-            channelFuture.addListener(
+            /*channelFuture.addListener(
                     (ChannelFutureListener) future -> logger.trace("({}) Success to connect with remote peer. (ip={}, port={})", sessionId, destIp, destPort)
-            );
+            );*/
             channel = channelFuture.channel();
 
             if (isPaused.get()) {
@@ -129,7 +127,6 @@ public class Streamer {
             //logger.debug("({}) Streamer is started. ({})", sessionId, this);
         } catch (Exception e) {
             //logger.warn("({}) Streamer.start.Exception", sessionId, e);
-            stop();
         }
     }
 
@@ -155,7 +152,7 @@ public class Streamer {
         }
 
         isPaused.set(true);
-        //logger.debug("({}) Streamer is paused. ({})", sessionId, this);
+        logger.debug("({}) Streamer is paused. ({})", sessionId, this);
     }
 
     public void close () {
@@ -322,18 +319,6 @@ public class Streamer {
      */
     public boolean isActive() {
         if (channel != null) {
-            /*if (channel.isActive()) {
-                logger.debug("({}) channel active", sessionId);
-            } else {
-                logger.warn("({}) channel inactive", sessionId);
-            }
-
-            if (channel.isOpen()) {
-                logger.debug("({}) channel opened", sessionId);
-            } else {
-                logger.warn("({}) channel closed", sessionId);
-            }*/
-
             return channel.isActive() && channel.isOpen();
         } else {
             return false;

@@ -32,5 +32,32 @@ public class MpegTsStreamerTest {
         // Start streaming
         streamer.stream();
 
+        ///////////////////////////////////////////////////////////////////////////
+// [UDP] Set up packet source
+                        /*MTSSource movie = MTSSources.from(new File(tsFileName));
+                        MTSSink transport = UDPTransport.builder()
+                                .setAddress(streamer.getDestIp()) // Can be a multicast address
+                                .setPort(streamer.getDestPort())
+                                .setSoTimeout(1000)
+                                .setTtl(1)
+                                .build();
+                        MpegTsStreamer mpegTsStreamer = MpegTsStreamer.builder()
+                                .setSource(movie)
+                                .setSink(transport)
+                                .build();
+                        mpegTsStreamer.stream();*/
+///////////////////////////////////////////////////////////////////////////
+
+
+///////////////////////////////////////////////////////////////////////////
+// [UDP] SLEEP
+//logger.debug("({}) ({}) [SEND TS] (bitrate={}, {})", rtspUnit.getRtspUnitId(), streamer.getSessionId(), mediaSegment.bitrate(), mediaSegment);
+                    /*long sec = (long) mediaSegment.duration();
+                    long msec = (long) ((mediaSegment.duration() - sec) * 1000);
+                    long timeout = sec * 1000 + msec;
+                    logger.debug("({}) ({}) SLEEP: {}", rtspUnit.getRtspUnitId(), streamer.getSessionId(), timeout);
+                    timeUnit.sleep(timeout);*/
+///////////////////////////////////////////////////////////////////////////
+
     }
 }

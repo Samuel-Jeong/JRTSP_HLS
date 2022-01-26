@@ -1,6 +1,7 @@
 package rtsp.module.netty.handler;
 
 import com.fsm.module.StateHandler;
+import com.google.common.collect.Maps;
 import io.lindstrom.m3u8.model.MediaPlaylist;
 import io.lindstrom.m3u8.model.MediaSegment;
 import io.lindstrom.m3u8.parser.MediaPlaylistParser;
@@ -15,6 +16,8 @@ import rtsp.module.Streamer;
 import rtsp.module.VideoStream;
 import rtsp.module.base.RtspUnit;
 import rtsp.module.mpegts.content.MpegTsPacket;
+import rtsp.module.mpegts.content.PATSection;
+import rtsp.module.mpegts.content.PMTSection;
 import rtsp.protocol.RtpPacket;
 import rtsp.service.AppInstance;
 import rtsp.service.scheduler.job.Job;
@@ -26,10 +29,12 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 public class RtpSender extends Job {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(RtpSender.class);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -182,8 +187,7 @@ public class RtpSender extends Job {
             );
 
             logger.debug("({}) ({}) << Send M3U8 (destIp={}, destPort={})\n{}(size={})",
-                    getName(), rtspUnit.getRtspUnitId(),
-                    streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(),
+                    rtspUnit.getRtspUnitId(), streamer.getSessionId(), streamer.getDestIp(), streamer.getDestPort(),
                     new String(m3u8ByteData, StandardCharsets.UTF_8), m3u8ByteData.length
             );
             ///////////////////////////////////////////////////////////////////////////
@@ -193,38 +197,37 @@ public class RtpSender extends Job {
             mediaSegmentList = streamer.getMediaSegmentList();
             String m3u8PathOnly = streamer.getM3u8PathOnly();
 
-            int fps = configManager.getFps();
-            int gop = configManager.getGop();
-
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            InputStream inputStream = null;
 
             // TS Packet Total byte : 188 (4(header) + 184(body))
             // > 이 하나의 패킷 안에 하나의 이미지(프레임)에 대한 모든 정보가 들어있는게 아니다.
             byte[] buffer = new byte[TS_PACKET_SIZE];
 
-            int timeInterval = (fps * gop); // i-frame interval (ms)
-            long timeStampInterval = 90000 / timeInterval;
-            logger.debug("({}) ({}) RtpInterval=[{}], TimeStampInterval=[{}]",
-                    rtspUnit.getRtspUnitId(), streamer.getSessionId(), timeInterval, timeStampInterval
-            );
-
-            //int curTimeInterval;
-            int read;
+            int fps = 0;
+            long packetCount = 0;
+            long timeStampInterval = 0;
+            List<InputStream> inputStreamList = new ArrayList<>();
             int totalSendByteSize = 0;
-            int totalFrameCount = 0;
-            long curTotalFrameSize = 0;
-            TimeUnit timeUnit = TimeUnit.MILLISECONDS;
 
             try {
+                ///////////////////////////////////////////////////////////////////////////
+                // GET TS FILE NAME & STREAM LIST
                 for (MediaSegment mediaSegment : mediaSegmentList) {
-                    if (mediaSegment == null) { continue; }
+                    if (mediaSegment == null) {
+                        continue;
+                    }
 
                     ///////////////////////////////////////////////////////////////////////////
                     // GET TS FILE NAME & STREAM
                     String tsFileName = mediaSegment.uri();
                     tsFileName = m3u8PathOnly + File.separator + tsFileName;
-                    inputStream = new FileInputStream(tsFileName);
+                    InputStream inputStream = new FileInputStream(tsFileName);
+
+                    if (fps == 0) {
+                        fps = Integer.parseInt(Objects.requireNonNull(getFps(tsFileName))); // fps
+                        int tbn = Integer.parseInt(Objects.requireNonNull(getTbn(tsFileName))); // sampling rate
+                        timeStampInterval = tbn / fps * 4L; // rtp timestamp > TODO affected by gop > 지금 gop 16 으로 고정
+                    }
                     ///////////////////////////////////////////////////////////////////////////
 
                     ///////////////////////////////////////////////////////////////////////////
@@ -236,28 +239,37 @@ public class RtpSender extends Job {
                         );
                         continue;
                     } else {
-                        logger.warn("({}) ({}) MPEG TS({}) FileSize=[{}]",
+                        logger.debug("({}) ({}) MPEG TS({}) FileSize=[{}]",
                                 rtspUnit.getRtspUnitId(), streamer.getSessionId(),
                                 tsFileName, fileSize
                         );
                     }
 
-                    ///////////////////////////////////////////////////////////////////////////
-                    // GET FRAME SIZE LIST FROM THE CURRENT TS FILE
-                    List<String[]> frameSizeList = getTsFileFrameSizeList(tsFileName);
-                    ///////////////////////////////////////////////////////////////////////////
+                    inputStreamList.add(inputStream);
+                }
+                ///////////////////////////////////////////////////////////////////////////
+
+                ///////////////////////////////////////////////////////////////////////////
+                // START TO STREAM
+                for (InputStream inputStream : inputStreamList) {
+                    if (inputStream == null) { continue; }
+
+                    int fileSize = inputStream.available();
+                    int read;
+                    int curTsTotalByteSize = 0;
+                    long curTimeStampInterval;
+
+                    boolean resetState = false;
+                    long pcrCount = 0;
+                    Long firstPcrValue = null;
+                    Long firstPcrTime = null;
+                    Long lastPcrValue = null;
+                    Long lastPcrTime = null;
 
                     ///////////////////////////////////////////////////////////////////////////
                     // [RTP]
-                    int curTsTotalByteSize = 0;
-                    int curFrameCount = 0;
-                    long frameRemainSizeInc = 0; // 누적 잉여 프레임 바이트 사이즈
-                    long curTimeStampInterval;
-                    boolean isSleep;
-
                     while ((read = inputStream.read(buffer)) != -1) {
                         if (streamer.isPaused()) { break; }
-                        if (curFrameCount >= frameSizeList.size()) { break; }
 
                         ///////////////////////////////////////////////////////////////////////////
                         // [RTCP]
@@ -273,98 +285,169 @@ public class RtpSender extends Job {
 
                         ///////////////////////////////////////////////////////////////////////////
                         // TS PACKET DECODING (PAT, PMT, PSI)
-                        /*ByteBuffer byteBuffer = ByteBuffer.wrap(curData);
+                        ByteBuffer byteBuffer = ByteBuffer.wrap(curData);
                         MpegTsPacket mpegTsPacket = new MpegTsPacket(byteBuffer);
-                        logger.debug("({}) ({}) MpegTsPacket: \n[{}]", rtspUnit.getRtspUnitId(), streamer.getSessionId(), mpegTsPacket);*/
+                        //logger.debug("({}) ({}) MpegTsPacket: \n[{}]", rtspUnit.getRtspUnitId(), streamer.getSessionId(), mpegTsPacket);
                         ///////////////////////////////////////////////////////////////////////////
 
                         ///////////////////////////////////////////////////////////////////////////
-                        // GET FRAME DATA (size, type)
-                        String[] curFrameInfo = frameSizeList.get(curFrameCount);
-                        long curFrameSize = Long.parseLong(curFrameInfo[0]);
-                        String curFrameType = curFrameInfo[1];
+                        if (resetState) {
+                            pcrCount = 0;
+                            firstPcrValue = null;
+                            firstPcrTime = null;
+                            lastPcrValue = null;
+                            lastPcrTime = null;
+                            resetState = false;
+                        }
+
+                        long sleepNanos = 0;
+                        int pid = mpegTsPacket.getPid();
+                        PATSection patSection = null;
+                        TreeMap<Integer, PMTSection> pmtSection = Maps.newTreeMap();
+
+                        ///////////////////////////////////////////////////////////////////////////
+                        // CHECK PMT
+                        if (pid == 0 && mpegTsPacket.isPayloadUnitStartIndicator()) {
+                            ByteBuffer payload = mpegTsPacket.getPayload();
+                            payload.rewind();
+                            int pointer = payload.get() & 0xff;
+                            payload.position(payload.position() + pointer);
+                            patSection = PATSection.parse(payload);
+                            if (patSection != null) {
+                                for (Integer pmtPid : pmtSection.keySet()) {
+                                    if (!patSection.getPrograms().containsValue(pmtPid)) {
+                                        pmtSection.remove(pmtPid);
+                                    }
+                                }
+                            }
+                        }
                         ///////////////////////////////////////////////////////////////////////////
 
                         ///////////////////////////////////////////////////////////////////////////
-                        // NEXT FRAME
-                        if (curTotalFrameSize >= (curFrameSize + frameRemainSizeInc)) {
-                            curTimeStampInterval = timeStampInterval;
-                            curTotalFrameSize -= curFrameSize;
-                            frameRemainSizeInc = curTotalFrameSize;
-                            curFrameCount++;
-                            isSleep = true;
-                        } else { // CURRENT FRAME
+                        // CHECK PAT
+                        if (pid != 0 && patSection != null) {
+                            if (patSection.getPrograms().containsValue(pid)) {
+                                if (mpegTsPacket.isPayloadUnitStartIndicator()) {
+                                    ByteBuffer payload = mpegTsPacket.getPayload();
+                                    payload.rewind();
+                                    int pointer = payload.get() & 0xff;
+                                    payload.position(payload.position() + pointer);
+                                    pmtSection.put(pid, PMTSection.parse(payload));
+                                }
+                            }
+                        }
+                        ///////////////////////////////////////////////////////////////////////////
+
+                        ///////////////////////////////////////////////////////////////////////////
+                        // CHECK PCR
+                        if (mpegTsPacket.getAdaptationField() != null) {
+                            if (mpegTsPacket.getAdaptationField().getPcr() != null) {
+                                if (!mpegTsPacket.getAdaptationField().isDiscontinuityIndicator()) {
+                                    // Get PCR and current nano time
+                                    long pcrValue = mpegTsPacket.getAdaptationField().getPcr().getValue();
+                                    long pcrTime = System.nanoTime();
+                                    pcrCount++;
+
+                                    // Compute sleepNanosOrig
+                                    Long sleepNanosOrig = null;
+                                    if (firstPcrValue == null) {
+                                        firstPcrValue = pcrValue;
+                                        firstPcrTime = pcrTime;
+                                    } else if (pcrValue > firstPcrValue) {
+                                        // ts-container has fixed time-scale (90kHZ for PTS/DTS and 27MHz for PCR)
+                                        sleepNanosOrig = ((pcrValue - firstPcrValue) / 27 * 1000) - (pcrTime - firstPcrTime);
+                                    }
+
+                                    // Compute sleepNanosPrevious
+                                    Long sleepNanosPrevious = null;
+                                    if (lastPcrValue != null && lastPcrTime != null) {
+                                        if (pcrValue <= lastPcrValue) {
+                                            logger.warn("({}) ({}) PCR discontinuity ! (pid={}, pcrValue={}, lastPcrValue={})", rtspUnit.getRtspUnitId(), streamer.getSessionId(), mpegTsPacket.getPid(), pcrValue, lastPcrValue);
+                                            resetState = true;
+                                        } else {
+                                            // ts-container has fixed time-scale (90kHZ for PTS/DTS and 27MHz for PCR)
+                                            sleepNanosPrevious = ((pcrValue - lastPcrValue) / 27 * 1000) - (pcrTime - lastPcrTime);
+                                        }
+                                    }
+
+                                    // Set sleep time based on PCR if possible
+                                    if (sleepNanosPrevious != null) {
+                                        // Safety : We should never have to wait more than 100ms
+                                        if (sleepNanosPrevious > 100000000) {
+                                            logger.warn("({}) ({}) PCR sleep ignored, too high! (pid={}, sleepNanosPrevious={})", rtspUnit.getRtspUnitId(), streamer.getSessionId(), mpegTsPacket.getPid(), sleepNanosPrevious);
+                                            resetState = true;
+                                        } else {
+                                            sleepNanos = sleepNanosPrevious;
+                                        }
+                                    }
+
+                                    // Set lastPcrValue/lastPcrTime
+                                    lastPcrValue = pcrValue;
+                                    lastPcrTime = pcrTime + sleepNanos;
+                                } else {
+                                    logger.warn("({}) ({}) Skipped PCR - Discontinuity indicator", rtspUnit.getRtspUnitId(), streamer.getSessionId());
+                                }
+                            }
+
+                            ///////////////////////////////////////////////////////////////////////////
+                            // IF RANDOM ACCESS INDICATOR IS TRUE, THIS PACKET INCLUDE KEY FRAME.
+                            if (mpegTsPacket.getAdaptationField().isRandomAccessIndicator()) {
+                                curTimeStampInterval = timeStampInterval;
+                            } else {
+                                curTimeStampInterval = 0;
+                            }
+                            ///////////////////////////////////////////////////////////////////////////
+                        } else {
                             curTimeStampInterval = 0;
-                            isSleep = false;
+                        }
+                        ///////////////////////////////////////////////////////////////////////////
+
+                        ///////////////////////////////////////////////////////////////////////////
+                        // Sleep if needed
+                        if (sleepNanos > 0) {
+                            //logger.debug("Sleeping " + sleepNanos / 1000000 + " millis, " + sleepNanos % 1000000 + " nanos");
+                            try {
+                                Thread.sleep(sleepNanos / 1000000, (int) (sleepNanos % 1000000));
+                            } catch (InterruptedException e) {
+                                logger.warn("({}) ({}) Streaming sleep interrupted!", rtspUnit.getRtspUnitId(), streamer.getSessionId());
+                            }
                         }
                         ///////////////////////////////////////////////////////////////////////////
 
                         ///////////////////////////////////////////////////////////////////////////
                         // SEND RTP PACKET
-                        sendRtpPacket(streamer, curData, curTimeStampInterval);
-                        if (!isSleep) {
-                            curTotalFrameSize += curData.length; // 프레임 크기 누적 계산 (프레임 구분)
-                            curTsTotalByteSize += curData.length; // TS 파일 누적 크기 계산 (Ts 파일 구분)
-                        }
-                        ///////////////////////////////////////////////////////////////////////////
-
-                        ///////////////////////////////////////////////////////////////////////////
-                        // SLEEP IF CURRENT FRAME IS SENT
-                        if (curTsTotalByteSize < fileSize) { // 파일의 마지막에는 SLEEP 하지 않음
-                            if (isSleep) {
-                                timeUnit.sleep(timeInterval);
-                                logger.debug("({}) ({}) [SLEEP({}ms)] [curTsTotalByteSize={}, fileSize={}], [curFrameCount={}, curFrameType={}, curFrameSize={}(+{}), curTotalFrameSize(remain)={}]",
-                                        rtspUnit.getRtspUnitId(), streamer.getSessionId(),
-                                        timeInterval,
-                                        curTsTotalByteSize, fileSize,
-                                        curFrameCount, curFrameType, curFrameSize, frameRemainSizeInc, curTotalFrameSize
-                                );
-                            }
-                        } else {
-                            logger.warn("END OF FILE > NOT SLEEP");
-                        }
+                        sendRtpPacket(streamer, curData, 0); // TODO : TIMESTAMP
+                        curTsTotalByteSize += curData.length; // TS 파일 누적 크기 계산 (Ts 파일 구분)
+                        packetCount++;
                         ///////////////////////////////////////////////////////////////////////////
                     }
-
-                    // [UDP] Set up packet source
-                    /*MTSSource movie = MTSSources.from(new File(tsFileName));
-                    MTSSink transport = UDPTransport.builder()
-                            .setAddress(streamer.getDestIp()) // Can be a multicast address
-                            .setPort(streamer.getDestPort())
-                            .setSoTimeout(1000)
-                            .setTtl(1)
-                            .build();
-                    MpegTsStreamer mpegTsStreamer = MpegTsStreamer.builder()
-                            .setSource(movie)
-                            .setSink(transport)
-                            .build();
-                    mpegTsStreamer.stream();*/
                     ///////////////////////////////////////////////////////////////////////////
 
-                    totalFrameCount += curFrameCount;
+                    ///////////////////////////////////////////////////////////////////////////
+                    // FINISH
                     totalSendByteSize += curTsTotalByteSize;
-                    logger.debug("({}) ({}) [SEND TS BYTES: {}, FRAME COUNT: {}] (bitrate={}, {})", rtspUnit.getRtspUnitId(), streamer.getSessionId(), curTsTotalByteSize, curFrameCount, mediaSegment.bitrate(), mediaSegment);
-
+                    logger.debug("({}) ({}) [SEND TS BYTES: {}({}), [PCR: {}, PACKET: {}]",
+                            rtspUnit.getRtspUnitId(), streamer.getSessionId(),
+                            curTsTotalByteSize, fileSize, pcrCount, packetCount
+                    );
                     inputStream.close();
-                    inputStream = null;
-
                     if (streamer.isPaused()) {
                         logger.warn("({}) ({}) [FINISHED BY PAUSE]", rtspUnit.getRtspUnitId(), streamer.getSessionId());
                         break;
                     }
-
-                    //logger.debug("({}) ({}) [SEND TS] (bitrate={}, {})", rtspUnit.getRtspUnitId(), streamer.getSessionId(), mediaSegment.bitrate(), mediaSegment);
-                    /*long sec = (long) mediaSegment.duration();
-                    long msec = (long) ((mediaSegment.duration() - sec) * 1000);
-                    long timeout = sec * 1000 + msec;
-                    logger.debug("({}) ({}) SLEEP: {}", rtspUnit.getRtspUnitId(), streamer.getSessionId(), timeout);
-                    timeUnit.sleep(timeout);*/
+                    ///////////////////////////////////////////////////////////////////////////
                 }
             } finally {
-                logger.debug("({}) ({}) [SEND TOTAL BYTES: {}, FRAME COUNT: {}]", rtspUnit.getRtspUnitId(), streamer.getSessionId(), totalSendByteSize, totalFrameCount);
+                logger.debug("({}) ({}) [SEND TOTAL BYTES: {}, PACKET COUNT: {}]", rtspUnit.getRtspUnitId(), streamer.getSessionId(), totalSendByteSize, packetCount);
 
                 try { byteArrayOutputStream.close(); } catch (IOException e) { logger.warn("", e); }
-                try { if (inputStream != null) { inputStream.close(); } } catch (IOException e) { logger.warn("", e); }
+                try {
+                    for (InputStream inputStream : inputStreamList) {
+                        if (inputStream != null) {
+                            inputStream.close();
+                        }
+                    }
+                } catch (IOException e) { logger.warn("", e); }
             }
             ///////////////////////////////////////////////////////////////////////////
         } catch (Exception e) {
@@ -407,6 +490,36 @@ public class RtpSender extends Job {
             }
         }
         return frameSizeList;
+    }
+
+    private String getFrameStartTime(String tsFileName) {
+        String frameStartTimeString = ffmpegManager.getFrameStartTime(tsFileName);
+        if (frameStartTimeString != null) {
+            String[] splitLine = frameStartTimeString.split(",");
+            return splitLine[1];
+        }
+
+        return null;
+    }
+
+    private String getFps(String tsFileName) {
+        String fpsString = ffmpegManager.getFps(tsFileName);
+        if (fpsString != null) {
+            String[] splitLine = fpsString.split(",");
+            return splitLine[2].split("/")[0]; // 30/1 > 30
+        }
+
+        return null;
+    }
+
+    private String getTbn(String tsFileName) {
+        String tbnString = ffmpegManager.getTbn(tsFileName);
+        if (tbnString != null) {
+            String[] splitLine = tbnString.split(",");
+            return splitLine[2].split("/")[1]; // 1/90000 > 90000
+        }
+
+        return null;
     }
 
 }
