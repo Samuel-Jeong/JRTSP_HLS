@@ -203,11 +203,18 @@ public class RtpSender extends Job {
             // > 이 하나의 패킷 안에 하나의 이미지(프레임)에 대한 모든 정보가 들어있는게 아니다.
             byte[] buffer = new byte[TS_PACKET_SIZE];
 
+            int tbn = 0;
             int fps = 0;
+            int gop;
+
+            long additionalTimestampIncrement = 1;
+            long frameCount = 0;
             long packetCount = 0;
-            long timeStampInterval = 0;
-            List<InputStream> inputStreamList = new ArrayList<>();
+            long totalSleepTime = 0; // ms
             int totalSendByteSize = 0;
+            boolean isEndOfFrame;
+
+            List<InputStream> inputStreamList = new ArrayList<>();
 
             try {
                 ///////////////////////////////////////////////////////////////////////////
@@ -225,8 +232,12 @@ public class RtpSender extends Job {
 
                     if (fps == 0) {
                         fps = Integer.parseInt(Objects.requireNonNull(getFps(tsFileName))); // fps
-                        int tbn = Integer.parseInt(Objects.requireNonNull(getTbn(tsFileName))); // sampling rate
-                        timeStampInterval = tbn / fps * 4L; // rtp timestamp > TODO affected by gop > 지금 gop 16 으로 고정
+                        gop = getGop(tsFileName); // gop
+                        tbn = Integer.parseInt(Objects.requireNonNull(getTbn(tsFileName)));
+                        logger.debug("({}) ({}) FPS=[{}], GOP=[{}], TBN=[{}]",
+                                rtspUnit.getRtspUnitId(), streamer.getSessionId(),
+                                fps, gop, tbn
+                        );
                     }
                     ///////////////////////////////////////////////////////////////////////////
 
@@ -257,12 +268,11 @@ public class RtpSender extends Job {
                     int fileSize = inputStream.available();
                     int read;
                     int curTsTotalByteSize = 0;
-                    long curTimeStampInterval;
 
                     boolean resetState = false;
                     long pcrCount = 0;
                     Long firstPcrValue = null;
-                    Long firstPcrTime = null;
+                    //Long firstPcrTime = null;
                     Long lastPcrValue = null;
                     Long lastPcrTime = null;
 
@@ -294,7 +304,7 @@ public class RtpSender extends Job {
                         if (resetState) {
                             pcrCount = 0;
                             firstPcrValue = null;
-                            firstPcrTime = null;
+                            //firstPcrTime = null;
                             lastPcrValue = null;
                             lastPcrTime = null;
                             resetState = false;
@@ -340,23 +350,24 @@ public class RtpSender extends Job {
 
                         ///////////////////////////////////////////////////////////////////////////
                         // CHECK PCR
-                        if (mpegTsPacket.getAdaptationField() != null) {
-                            if (mpegTsPacket.getAdaptationField().getPcr() != null) {
-                                if (!mpegTsPacket.getAdaptationField().isDiscontinuityIndicator()) {
+                        MpegTsPacket.AdaptationField adaptationField = mpegTsPacket.getAdaptationField();
+                        if (adaptationField != null) {
+                            if (adaptationField.getPcr() != null) {
+                                if (!adaptationField.isDiscontinuityIndicator()) {
                                     // Get PCR and current nano time
-                                    long pcrValue = mpegTsPacket.getAdaptationField().getPcr().getValue();
+                                    long pcrValue = adaptationField.getPcr().getValue();
                                     long pcrTime = System.nanoTime();
                                     pcrCount++;
 
                                     // Compute sleepNanosOrig
-                                    Long sleepNanosOrig = null;
+                                    //Long sleepNanosOrig = null;
                                     if (firstPcrValue == null) {
                                         firstPcrValue = pcrValue;
-                                        firstPcrTime = pcrTime;
-                                    } else if (pcrValue > firstPcrValue) {
+                                        //firstPcrTime = pcrTime;
+                                    } /*else if (pcrValue > firstPcrValue) {
                                         // ts-container has fixed time-scale (90kHZ for PTS/DTS and 27MHz for PCR)
                                         sleepNanosOrig = ((pcrValue - firstPcrValue) / 27 * 1000) - (pcrTime - firstPcrTime);
-                                    }
+                                    }*/
 
                                     // Compute sleepNanosPrevious
                                     Long sleepNanosPrevious = null;
@@ -388,35 +399,36 @@ public class RtpSender extends Job {
                                     logger.warn("({}) ({}) Skipped PCR - Discontinuity indicator", rtspUnit.getRtspUnitId(), streamer.getSessionId());
                                 }
                             }
-
-                            ///////////////////////////////////////////////////////////////////////////
-                            // IF RANDOM ACCESS INDICATOR IS TRUE, THIS PACKET INCLUDE KEY FRAME.
-                            if (mpegTsPacket.getAdaptationField().isRandomAccessIndicator()) {
-                                curTimeStampInterval = timeStampInterval;
-                            } else {
-                                curTimeStampInterval = 0;
-                            }
-                            ///////////////////////////////////////////////////////////////////////////
-                        } else {
-                            curTimeStampInterval = 0;
                         }
                         ///////////////////////////////////////////////////////////////////////////
 
                         ///////////////////////////////////////////////////////////////////////////
                         // Sleep if needed
                         if (sleepNanos > 0) {
-                            //logger.debug("Sleeping " + sleepNanos / 1000000 + " millis, " + sleepNanos % 1000000 + " nanos");
                             try {
                                 Thread.sleep(sleepNanos / 1000000, (int) (sleepNanos % 1000000));
                             } catch (InterruptedException e) {
                                 logger.warn("({}) ({}) Streaming sleep interrupted!", rtspUnit.getRtspUnitId(), streamer.getSessionId());
                             }
+
+                            if (adaptationField.isRandomAccessIndicator()) { // KEY FRAME
+                                additionalTimestampIncrement = (frameCount + 1); // I-FRAME INTERVAL FOR TIMESTAMP
+                                frameCount = 0;
+                            } else {
+                                additionalTimestampIncrement = 1;
+                                frameCount++;
+                            }
+                            logger.debug("frameCount: {}, additionalTimestampIncrement: {}", frameCount, additionalTimestampIncrement);
+
+                            isEndOfFrame = true;
+                        } else {
+                            isEndOfFrame = false;
                         }
                         ///////////////////////////////////////////////////////////////////////////
 
                         ///////////////////////////////////////////////////////////////////////////
                         // SEND RTP PACKET
-                        sendRtpPacket(streamer, curData, 0); // TODO : TIMESTAMP
+                        sendRtpPacket(streamer, curData, fps, tbn, isEndOfFrame, additionalTimestampIncrement);
                         curTsTotalByteSize += curData.length; // TS 파일 누적 크기 계산 (Ts 파일 구분)
                         packetCount++;
                         ///////////////////////////////////////////////////////////////////////////
@@ -426,7 +438,7 @@ public class RtpSender extends Job {
                     ///////////////////////////////////////////////////////////////////////////
                     // FINISH
                     totalSendByteSize += curTsTotalByteSize;
-                    logger.debug("({}) ({}) [SEND TS BYTES: {}({}), [PCR: {}, PACKET: {}]",
+                    logger.debug("({}) ({}) [SEND TS BYTES: {}({}), [PCR: {},  PACKET: {}]",
                             rtspUnit.getRtspUnitId(), streamer.getSessionId(),
                             curTsTotalByteSize, fileSize, pcrCount, packetCount
                     );
@@ -438,7 +450,7 @@ public class RtpSender extends Job {
                     ///////////////////////////////////////////////////////////////////////////
                 }
             } finally {
-                logger.debug("({}) ({}) [SEND TOTAL BYTES: {}, PACKET COUNT: {}]", rtspUnit.getRtspUnitId(), streamer.getSessionId(), totalSendByteSize, packetCount);
+                logger.debug("({}) ({}) [SEND TOTAL BYTES: {}, PACKET COUNT: {}, SLEEP TIME: {}]", rtspUnit.getRtspUnitId(), streamer.getSessionId(), totalSendByteSize, packetCount, totalSleepTime);
 
                 try { byteArrayOutputStream.close(); } catch (IOException e) { logger.warn("", e); }
                 try {
@@ -455,7 +467,7 @@ public class RtpSender extends Job {
         }
     }
 
-    private void sendRtpPacket(Streamer streamer, byte[] data, long timeStampInterval) {
+    private void sendRtpPacket(Streamer streamer, byte[] data, int fps, int tbn, boolean isEndOfFrame, long additionalTimestampIncrement) {
         int curSeqNum = streamer.getCurSeqNum();
         long curTimeStamp = streamer.getCurTimeStamp();
 
@@ -472,8 +484,29 @@ public class RtpSender extends Job {
                 streamer.getDestPort()
         );
 
+        if (curSeqNum == 65535) {
+            streamer.resetSeqNumber();
+            curSeqNum = streamer.getCurSeqNum();
+        }
         streamer.setCurSeqNum(curSeqNum + 1);
-        streamer.setCurTimeStamp(curTimeStamp + timeStampInterval);
+
+        /**
+         * For video, time clock rate is fixed at 90 kHz.
+         * The timestamps generated depend on whether the application can determine the frame number or not.
+         * If it can or it can be sure that it is transmitting every frame with a fixed frame rate,
+         *      the timestamp is governed by the nominal frame rate.
+         * Thus, for a 30 f/s video,
+         *      timestamps would increase by 3,000 for each frame,
+         *      for a 25 f/s video by 3,600 for each frame.
+         * If a frame is transmitted as several RTP packets,
+         *      these packets would all bear the same timestamp.
+         *  If the frame number cannot be determined or if frames are sampled aperiodically,
+         *      as is typically the case for software codecs,
+         *      the timestamp has to be computed from the system clock (e.g., gettimeofday()).
+         */
+        if (isEndOfFrame) {
+            streamer.setCurTimeStamp(curTimeStamp + ((tbn / fps) * additionalTimestampIncrement));
+        }
     }
 
     private List<String[]> getTsFileFrameSizeList(String tsFileName) {
@@ -510,6 +543,36 @@ public class RtpSender extends Job {
         }
 
         return null;
+    }
+
+    private int getGop(String tsFileName) {
+        int lineNumber = 0;
+        int gop = 0; // 0 < gop <= 30
+
+        // I, B, P, B, B, I, ...
+        // > gop = 5
+
+        // I, I, I, ...
+        // > gop = 1
+
+        List<String> frameLineList = ffmpegManager.getFrameLineList(tsFileName);
+        if (!frameLineList.isEmpty()) {
+            for (String frameLine : frameLineList) { // ex) frame,20464,I
+                if (frameLine != null && frameLine.length() > 0) {
+                    String[] splitLine = frameLine.split(",");
+
+                    // I-FRAME 간격 구하기
+                    if (lineNumber > 0 && splitLine[2].equals("I")) {
+                        break;
+                    } else {
+                        gop++;
+                    }
+                }
+
+                lineNumber++;
+            }
+        }
+        return gop;
     }
 
     private String getTbn(String tsFileName) {

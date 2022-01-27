@@ -52,7 +52,8 @@ public class Streamer {
     private final Random random = new Random();
     private int ssrc;
     private int curSeqNum;
-    private long curTimeStamp;
+    private long curTimeStamp = 0;
+    private long startTime;
 
     private List<MediaSegment> mediaSegmentList = null;
     private String m3u8PathOnly = null;
@@ -70,16 +71,23 @@ public class Streamer {
 
         ssrc = random.nextInt(Integer.MAX_VALUE);
         curSeqNum = random.nextInt(100);
-        curTimeStamp = (int) (System.currentTimeMillis() / 1000);
 
         logger.debug("({}) Streamer is created. (listenIp={}, listenPort={}, uri={})", sessionId, listenIp, listenPort, uri);
     }
 
     /////////////////////////////////////////////////////////////////////
 
-    public void resetSeqAndTime() {
+    public void resetSeqNumber() {
         curSeqNum = random.nextInt(100);
+    }
+
+    public void resetTimeStamp() {
         curTimeStamp = (int) (System.currentTimeMillis() / 1000);
+    }
+
+    public void resetSeqAndTime() {
+        resetSeqNumber();
+        resetTimeStamp();
     }
 
     public Streamer init() {
@@ -302,6 +310,14 @@ public class Streamer {
 
     public void setCurTimeStamp(long curTimeStamp) {
         this.curTimeStamp = curTimeStamp;
+    }
+
+    public long getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(long startTime) {
+        this.startTime = startTime;
     }
 
     public String getSessionId() {
