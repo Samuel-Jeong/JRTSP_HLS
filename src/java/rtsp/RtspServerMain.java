@@ -17,7 +17,7 @@ public class RtspServerMain {
     public static void main(String[] args) {
 
         if (args.length != 2) {
-            System.out.println("Argument Error. (&0: VoipPhoneMain, &1: config_path)");
+            logger.error("Argument Error. (&0: RtspServerMain, &1: config_path)");
             return;
         }
 
