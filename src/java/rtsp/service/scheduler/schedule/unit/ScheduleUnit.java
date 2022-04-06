@@ -5,11 +5,9 @@ import org.slf4j.LoggerFactory;
 import rtsp.service.scheduler.job.Job;
 import rtsp.service.scheduler.schedule.handler.JobScheduler;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class ScheduleUnit {
 
+    ////////////////////////////////////////////////////////////////////////////////
     private static final Logger logger = LoggerFactory.getLogger(ScheduleUnit.class);
 
     public static final int DEFAULT_THREAD_COUNT = 5;
@@ -19,11 +17,9 @@ public class ScheduleUnit {
 
     private final int poolSize; // Thread pool size
     private final JobScheduler jobScheduler;
-
-    private final List<String> jobKeyList = new ArrayList<>();
-
     ////////////////////////////////////////////////////////////////////////////////
 
+    ////////////////////////////////////////////////////////////////////////////////
     public ScheduleUnit(String key, int poolSize, int queueSize) {
         this.scheduleUnitKey = key;
 
@@ -35,32 +31,29 @@ public class ScheduleUnit {
 
         jobScheduler = new JobScheduler(scheduleUnitKey, poolSize, queueSize);
     }
-
     ////////////////////////////////////////////////////////////////////////////////
 
+    ////////////////////////////////////////////////////////////////////////////////
     public boolean start(Job job) {
         if (job == null) { return false; }
         job.setScheduleUnitKey(scheduleUnitKey);
-        jobKeyList.add(job.getName());
         return jobScheduler.schedule(job);
     }
 
     public void stop(Job job) {
         if (job == null) { return; }
         job.setScheduleUnitKey(null);
-        jobKeyList.remove(job.getName());
         jobScheduler.cancel(job);
     }
 
     public void stopAll() {
-        jobKeyList.clear();
         jobScheduler.stop();
     }
-
     ////////////////////////////////////////////////////////////////////////////////
 
-    public int getJobKeyListSize() {
-        return jobKeyList.size();
+    ////////////////////////////////////////////////////////////////////////////////
+    public int getJobListSize() {
+        return jobScheduler.getScheduledJobCount();
     }
 
     public JobScheduler getJobScheduler() {
@@ -79,8 +72,6 @@ public class ScheduleUnit {
         return createdTime;
     }
 
-    ////////////////////////////////////////////////////////////////////////////////
-
     @Override
     public String toString() {
         return "ScheduleUnit{" +
@@ -88,4 +79,6 @@ public class ScheduleUnit {
                 ", threadCount=" + poolSize +
                 '}';
     }
+    ////////////////////////////////////////////////////////////////////////////////
+
 }

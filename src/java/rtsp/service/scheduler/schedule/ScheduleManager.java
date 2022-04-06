@@ -11,29 +11,20 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class ScheduleManager {
 
+    ////////////////////////////////////////////////////////////
+    // VARIABLES
     private static final Logger logger = LoggerFactory.getLogger(ScheduleManager.class);
-    
-    private static ScheduleManager scheduleManager = null;
-
     private final HashMap<String, ScheduleUnit> scheduleUnitMap = new HashMap<>();
     private final ReentrantLock scheduleUnitMapLock = new ReentrantLock();
+    ////////////////////////////////////////////////////////////
 
+    ////////////////////////////////////////////////////////////
+    // CONSTRUCTOR
+    public ScheduleManager() {}
     ////////////////////////////////////////////////////////////////////////////////
 
-    public ScheduleManager() {
-        // ignore
-    }
-    
-    public static ScheduleManager getInstance() {
-        if (scheduleManager == null) {
-            scheduleManager = new ScheduleManager();
-        }
-
-        return scheduleManager;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-
+    ////////////////////////////////////////////////////////////
+    // FUNCTIONS
     public int getScheduleUnitMapSize() {
         return scheduleUnitMap.size();
     }
@@ -60,17 +51,21 @@ public class ScheduleManager {
             return null;
         }
 
+        ScheduleUnit scheduleUnit = scheduleUnitMap.get(key);
+        if (scheduleUnit != null) {
+            return scheduleUnit;
+        }
+
         try {
             scheduleUnitMapLock.lock();
 
-            scheduleUnitMap.putIfAbsent(key,
-                    new ScheduleUnit(
-                            key,
-                            poolSize,
-                            queueSize
-                    )
+            scheduleUnit = new ScheduleUnit(
+                    key,
+                    poolSize,
+                    queueSize
             );
-            return scheduleUnitMap.get(key);
+            scheduleUnitMap.put(key, scheduleUnit);
+            return scheduleUnit;
         } catch (Exception e) {
             logger.warn("Fail to add the schedule unit.", e);
             return null;
@@ -123,6 +118,7 @@ public class ScheduleManager {
 
         ScheduleUnit scheduleUnit = getScheduleUnit(scheduleUnitKey);
         if (scheduleUnit == null) {
+            logger.warn("Fail to start the job. Fail to find the scheduleUnit. (scheduleUnitKey={})", scheduleUnitKey);
             return false;
         }
 
@@ -148,6 +144,23 @@ public class ScheduleManager {
         removeScheduleUnit(scheduleUnitKey);
     }
 
+    public void finish() {
+        for (Map.Entry<String, ScheduleUnit> entry : getCloneCallMap().entrySet()) {
+            if (entry == null) {
+                continue;
+            }
+
+            ScheduleUnit scheduleUnit = entry.getValue();
+            if (scheduleUnit == null) {
+                continue;
+            }
+
+            scheduleUnit.stopAll();
+        }
+
+        clearScheduleUnitMap();
+    }
+
     public int getActiveJobNumber(String scheduleUnitKey) {
         if (scheduleUnitKey == null) { return 0; }
 
@@ -156,7 +169,7 @@ public class ScheduleManager {
             return 0;
         }
 
-        return scheduleUnit.getJobKeyListSize();
+        return scheduleUnit.getJobListSize();
     }
 
     ////////////////////////////////////////////////////////////////////////////////

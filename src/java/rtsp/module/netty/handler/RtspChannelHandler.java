@@ -517,7 +517,7 @@ public class RtspChannelHandler extends ChannelInboundHandlerAdapter {
                                 fileTime, npt1, npt2,
                                 rtspStateHandler, rtspUnit, streamer, destPort
                         );
-                        ScheduleManager.getInstance().startJob(ServiceManager.MAIN_SCHEDULE_JOB, rtpSender);
+                        ServiceManager.getInstance().getScheduleManager().startJob(ServiceManager.MAIN_SCHEDULE_JOB, rtpSender);
                         ///////////////////////////////////////////////////////////////////////////
                     }
                 }

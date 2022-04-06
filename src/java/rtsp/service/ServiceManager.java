@@ -37,6 +37,7 @@ public class ServiceManager {
     private FileLock lock;
 
     private static ServiceManager serviceManager = null;
+    private final ScheduleManager scheduleManager = new ScheduleManager();
 
     private String externalClientRtspUnitId = null;
 
@@ -66,15 +67,15 @@ public class ServiceManager {
         systemLock();
 
         ConfigManager configManager = AppInstance.getInstance().getConfigManager();
-        if (ScheduleManager.getInstance().initJob(MAIN_SCHEDULE_JOB, configManager.getStreamThreadPoolSize(), configManager.getStreamThreadPoolSize() * 2)) {
-            ScheduleManager.getInstance().startJob(MAIN_SCHEDULE_JOB,
+        if (scheduleManager.initJob(MAIN_SCHEDULE_JOB, configManager.getStreamThreadPoolSize(), configManager.getStreamThreadPoolSize() * 2)) {
+            scheduleManager.startJob(MAIN_SCHEDULE_JOB,
                     new HaHandler(HaHandler.class.getSimpleName(),
                             0, DELAY, TimeUnit.MILLISECONDS,
                             5, 0, true
                     )
             );
 
-            ScheduleManager.getInstance().startJob(MAIN_SCHEDULE_JOB,
+            scheduleManager.startJob(MAIN_SCHEDULE_JOB,
                     new LongSessionRemover(LongSessionRemover.class.getSimpleName(),
                             0, DELAY, TimeUnit.MILLISECONDS,
                             3, 0, true
@@ -111,7 +112,7 @@ public class ServiceManager {
     }
 
     public void stop () {
-        ScheduleManager.getInstance().stopAll(MAIN_SCHEDULE_JOB);
+        scheduleManager.stopAll(MAIN_SCHEDULE_JOB);
 
         NettyChannelManager.getInstance().removeRegisterChannel();
         NettyChannelManager.getInstance().stop();
@@ -153,6 +154,10 @@ public class ServiceManager {
 
     public void setExternalClientRtspUnitId(String externalClientRtspUnitId) {
         this.externalClientRtspUnitId = externalClientRtspUnitId;
+    }
+
+    public ScheduleManager getScheduleManager() {
+        return scheduleManager;
     }
 
     private void systemLock () {
