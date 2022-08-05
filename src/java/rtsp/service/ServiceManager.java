@@ -9,6 +9,7 @@ import rtsp.fsm.RtspState;
 import rtsp.module.RtspManager;
 import rtsp.module.base.RtspUnit;
 import rtsp.module.netty.NettyChannelManager;
+import rtsp.service.scheduler.job.Job;
 import rtsp.service.scheduler.schedule.ScheduleManager;
 
 import java.io.File;
@@ -66,17 +67,17 @@ public class ServiceManager {
         // System Lock
         systemLock();
 
-        ConfigManager configManager = AppInstance.getInstance().getConfigManager();
+        ConfigManager configManager = rtsp.service.AppInstance.getInstance().getConfigManager();
         if (scheduleManager.initJob(MAIN_SCHEDULE_JOB, configManager.getStreamThreadPoolSize(), configManager.getStreamThreadPoolSize() * 2)) {
             scheduleManager.startJob(MAIN_SCHEDULE_JOB,
-                    new HaHandler(HaHandler.class.getSimpleName(),
+                    new rtsp.service.HaHandler(rtsp.service.HaHandler.class.getSimpleName(),
                             0, DELAY, TimeUnit.MILLISECONDS,
                             5, 0, true
                     )
             );
 
             scheduleManager.startJob(MAIN_SCHEDULE_JOB,
-                    new LongSessionRemover(LongSessionRemover.class.getSimpleName(),
+                    new rtsp.service.LongSessionRemover(rtsp.service.LongSessionRemover.class.getSimpleName(),
                             0, DELAY, TimeUnit.MILLISECONDS,
                             3, 0, true
                     )
@@ -104,7 +105,7 @@ public class ServiceManager {
             );
         }
 
-        ResourceManager.getInstance().initResource();
+        rtsp.service.ResourceManager.getInstance().initResource();
         NettyChannelManager.getInstance().addRegisterChannel();
 
         logger.debug("| All services are opened.");
@@ -117,7 +118,7 @@ public class ServiceManager {
         NettyChannelManager.getInstance().removeRegisterChannel();
         NettyChannelManager.getInstance().stop();
         RtspManager.getInstance().closeAllRtspUnits();
-        ResourceManager.getInstance().releaseResource();
+        rtsp.service.ResourceManager.getInstance().releaseResource();
 
         // System Unlock
         systemUnLock();
