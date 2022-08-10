@@ -1,5 +1,5 @@
 # JRTSP
-RTSP Server
+RTSP Server for hls
 
 ## Structure
   
